@@ -17,7 +17,7 @@ def connect_points(coordinates, connectity, fig):
     return fig_temp
 
 def plot_lattice(coordinates,connectity, diameter=-1, save_dir=None):
-    fig = plt.scatter_3d(coordinates, x=0, y=1, z=2, width=20)
+    fig = plt.scatter_3d(coordinates, x=0, y=1, z=2)
     if connectity is not None:
         fig = connect_points(coordinates, connectity, fig)
     fig.update_layout(title_text='Predicted lattice (diameter = {:.3f})'.format(diameter), title_x=0.5)

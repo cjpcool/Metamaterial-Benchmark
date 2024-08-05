@@ -45,6 +45,40 @@ class Structure:
         self.properties = properties
         self.to_jimages = self.calculate_to_jimages_efficient(self.cart_coords.numpy(), self.edge_index.numpy(), self.lattice_vector.numpy())
 
+    @staticmethod
+    def remove_overlapping_nodes(conn, coord, tol=0.01):
+        tot_nodes = len(coord)
+        red_conn = conn
+        duplicate_nodes = []
+        for i in range(tot_nodes):
+            for j in range((i + 1), tot_nodes):
+                if np.linalg.norm(coord[i, :] - coord[j, :]) < tol:
+                    red_conn[red_conn == j] = i
+                    coord[j, :] = coord[i, :]
+                    duplicate_nodes.append(j)
+
+        if duplicate_nodes:
+            duplicate_nodes = np.unique(duplicate_nodes)
+            duplicate_nodes = np.sort(duplicate_nodes)[::-1]
+            for i in duplicate_nodes:
+                red_conn[red_conn > i] = red_conn[red_conn > i] - 1
+
+        # delete duplicate nodes and preserve order
+        _, idx = np.unique(coord, axis=0, return_index=True)
+        red_coord = coord[np.sort(idx)]
+
+        # delete duplicate connectivities
+        for i in range(len(red_conn)):
+            if red_conn[i, 0] > red_conn[i, 1]:
+                temp = red_conn[i, 1]
+                red_conn[i, 1] = red_conn[i, 0]
+                red_conn[i, 0] = temp
+
+        red_conn = np.unique(red_conn, axis=0)
+        red_conn = red_conn[red_conn[:,0] != red_conn[:,1]]
+
+        return torch.from_numpy(red_conn), torch.from_numpy(red_coord)
+
 
 
     @staticmethod
@@ -205,7 +239,11 @@ class Structure:
 
     @staticmethod
     def correct_frac_coords(frac_coords, batch):
-        new_frac_coords = (frac_coords + 0.5) % 1. - 0.5
+        new_frac_coords = frac_coords + 0.5
+        out_cell_mask = (new_frac_coords > 1.) | (new_frac_coords < 0.)
+        new_frac_coords[out_cell_mask] = new_frac_coords[out_cell_mask] % 1.
+
+        new_frac_coords = new_frac_coords - 0.5
         min_frac_coords = scatter(new_frac_coords, batch, dim=0, reduce='min')
         max_frac_coords = scatter(new_frac_coords, batch, dim=0, reduce='max')
         offset_frac_coords = (min_frac_coords + max_frac_coords) / 2.0
