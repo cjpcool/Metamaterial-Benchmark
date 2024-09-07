@@ -22,8 +22,6 @@ from torch_geometric.data import (
     extract_zip,
 )
 
-
-
 class LatticeModulus(InMemoryDataset):
     downloadurl = ''
 
@@ -89,6 +87,7 @@ class LatticeModulus(InMemoryDataset):
                 frac_coords = torch.FloatTensor(exported_lattice['Nodal positions']).squeeze(1) - torch.tensor([0.5,0.5,0.5])
                 cart_coords = Structure.frac_to_cart_coords(frac_coords, lattice_param[0], lattice_param[1], frac_coords.shape[0])
                 edge_index = torch.LongTensor(exported_lattice['Edge index']).squeeze(1)
+                # "tol" control the radius: If the nodes' distances smaller than this radius, then only one of them remains.
                 edge_index, cart_coords = Structure.remove_overlapping_nodes(edge_index.numpy(), cart_coords.numpy(), tol=1e-5)
 
                 S1 = Structure(lattice_param,
@@ -102,23 +101,6 @@ class LatticeModulus(InMemoryDataset):
             edge_num = S1.num_edges
             node_feat = torch.zeros((S1.num_nodes, 1), dtype=torch.long)
             edge_feat = torch.zeros((edge_num, 1), dtype=torch.float32)
-            # edge_num = S1.num_edges
-            # node_feat = torch.zeros((S1.num_nodes, 1), dtype=torch.long)
-            # edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * S1.diameter
-            # data = Data(
-            #     frac_coords=S1.frac_coords.to(torch.float32),
-            #     cart_coords=S1.cart_coords.to(torch.float32),
-            #     node_feat=node_feat,
-            #     edge_feat=edge_feat,
-            #     edge_index=S1.edge_index,
-            #     num_nodes=S1.num_nodes,
-            #     num_atoms=S1.num_nodes,
-            #     num_edges=edge_num,
-            #     lengths=S1.lattice_params[0].view(1, -1).to(torch.float32),
-            #     angles=S1.lattice_params[1].view(1, -1).to(torch.float32),
-            #     y=S1.properties.to(torch.float32),
-            #     to_jimages = S1.to_jimages
-            # )
 
             data = Data(
                 frac_coords=S1.frac_coords.to(torch.float32),
@@ -150,10 +132,6 @@ class LatticeModulus(InMemoryDataset):
         train_idx, val_idx, test_idx = torch.LongTensor(ids[:train_size]), torch.tensor(ids[train_size:train_size + valid_size]), torch.tensor(ids[train_size + valid_size:])
         split_dict = {'train': train_idx, 'valid': val_idx, 'test': test_idx}
         return split_dict
-
-
-
-
 
 
 
@@ -231,12 +209,17 @@ class LatticeStiffness(InMemoryDataset):
             lengths, angles = Structure.lattice_vector_to_parameters(lattice_vector)
 
             frac_coords = Structure.cart_to_frac_coords(coords, lengths, angles, coords.shape[0])
-            frac_coords = frac_coords - frac_coords.min()
-            frac_coords = frac_coords / max(frac_coords.max(), 1.)
-            frac_coords -= (frac_coords.max(dim=0)[0] + frac_coords.min(dim=0)[0]) / 2.
-            # coords = Structure.frac_to_cart_coords(frac_coords, lengths, angles, coords.shape[0])
-
-
+        
+            if frac_coords.max() > 0.5 or frac_coords.min() < -0.5: # if lattice exceeds the unit cell
+                ## if you want to remove these data. However, almost all data has the problem.
+                # ignored_num += 1
+                # if i %100 == 0:
+                #     print('Ignored lattices number: {}'.format(ignored_num))
+                # continue
+                ## We scale it instead of remove directly.
+                frac_coords = frac_coords - frac_coords.min()
+                frac_coords = frac_coords / max(frac_coords.max(), 1.)
+                frac_coords -= (frac_coords.max(dim=0)[0] + frac_coords.min(dim=0)[0]) / 2.
 
             S1 = Structure(lattice_vector,
                            torch.from_numpy(exported_lattice.connectity),
