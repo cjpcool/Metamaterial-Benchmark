@@ -28,6 +28,18 @@ In updating...
 * **LatticeStiffness**: Bastek J H, Kumar S, Telgen B, et al. Inverting the structure–property map of truss metamaterials by deep learning[J]. Proceedings of the National Academy of Sciences, 2022, 119(1): e2111505119.
 * **LatticeModulus**: Lumpe T S, Stankovic T. Exploring the property space of periodic cellular structures based on crystal networks[J]. Proceedings of the National Academy of Sciences, 2021, 118(7): e2003504118.
 
+## Data Download
+To use dataset LatticeModulus, please unzip LatticeModulus.zip to [PATH\LatticeModulus], and load dataset by running:
+~~~python
+dataset = LatticeModulus('[your unzip path]\LatticeModulus', file_name='data')
+~~~
+
+To use dataset LatticeStiffness, please run:
+~~~python
+dataset = LatticeStiffness('[your path]\LatticeStiffness', file_name='training')
+~~~
+The dataset will be downloaded and processed automatically.
+
 
 * Statistics
     
