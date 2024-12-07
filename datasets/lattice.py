@@ -1,3 +1,5 @@
+from itertools import combinations
+
 import numpy as np
 import torch
 from torch_scatter import scatter
@@ -33,51 +35,17 @@ class Structure:
         self.num_nodes = coordinates.shape[0]
         self.diameter = diameter
         if is_cartesian:
-            self.frac_coords = self.cart_to_frac_coords(coordinates, self.lattice_params[0], self.lattice_params[1],
+            self.frac_coords = self.cart_to_frac_coords(coordinates, self.lattice_vector,
                                                         self.num_nodes)
             self.cart_coords = coordinates
         else:
-            self.cart_coords = self.frac_to_cart_coords(coordinates, self.lattice_params[0], self.lattice_params[1],
+            self.cart_coords = self.frac_to_cart_coords(coordinates, self.lattice_vector,
                                                         self.num_nodes)
             self.frac_coords = coordinates
 
         self.properties_names = properties_names
         self.properties = properties
         self.to_jimages = self.calculate_to_jimages_efficient(self.cart_coords.numpy(), self.edge_index.numpy(), self.lattice_vector.numpy())
-
-    @staticmethod
-    def remove_overlapping_nodes(conn, coord, tol=0.01):
-        tot_nodes = len(coord)
-        red_conn = conn
-        duplicate_nodes = []
-        for i in range(tot_nodes):
-            for j in range((i + 1), tot_nodes):
-                if np.linalg.norm(coord[i, :] - coord[j, :]) < tol:
-                    red_conn[red_conn == j] = i
-                    coord[j, :] = coord[i, :]
-                    duplicate_nodes.append(j)
-
-        if duplicate_nodes:
-            duplicate_nodes = np.unique(duplicate_nodes)
-            duplicate_nodes = np.sort(duplicate_nodes)[::-1]
-            for i in duplicate_nodes:
-                red_conn[red_conn > i] = red_conn[red_conn > i] - 1
-
-        # delete duplicate nodes and preserve order
-        _, idx = np.unique(coord, axis=0, return_index=True)
-        red_coord = coord[np.sort(idx)]
-
-        # delete duplicate connectivities
-        for i in range(len(red_conn)):
-            if red_conn[i, 0] > red_conn[i, 1]:
-                temp = red_conn[i, 1]
-                red_conn[i, 1] = red_conn[i, 0]
-                red_conn[i, 0] = temp
-
-        red_conn = np.unique(red_conn, axis=0)
-        red_conn = red_conn[red_conn[:,0] != red_conn[:,1]]
-
-        return torch.from_numpy(red_conn), torch.from_numpy(red_coord)
 
 
 
@@ -200,11 +168,11 @@ class Structure:
     @staticmethod
     def frac_to_cart_coords(
             frac_coords,
-            lengths,
-            angles,
+            lattice,
             num_atoms,
     ):
-        lattice = Structure.lattice_params_to_matrix_torch(lengths, angles)
+        if len(lattice.shape) == 2:
+            lattice = lattice.unsqueeze(0)
         lattice_nodes = torch.repeat_interleave(lattice, num_atoms, dim=0)
         cart_coords = torch.einsum('bi,bij->bj', frac_coords.float(), lattice_nodes.float())  # cart coords
         return cart_coords
@@ -212,11 +180,11 @@ class Structure:
     @staticmethod
     def cart_to_frac_coords(
             cart_coords,
-            lengths,
-            angles,
+            lattice,
             num_atoms,
     ):
-        lattice = Structure.lattice_params_to_matrix_torch(lengths, angles)
+        if len(lattice.shape) == 2:
+            lattice = lattice.unsqueeze(0)
         # use pinv in case the predicted lattice is not rank 3
         inv_lattice = torch.pinverse(lattice)
         inv_lattice_nodes = torch.repeat_interleave(inv_lattice, num_atoms, dim=0)
@@ -224,8 +192,9 @@ class Structure:
         return frac_coords
 
     @staticmethod
-    def correct_cart_coords(cart_coords, lengths, angles, num_atoms, batch):
-        lattice = Structure.lattice_params_to_matrix_torch(lengths, angles)
+    def correct_cart_coords(cart_coords, lattice, num_atoms, batch):
+        if len(lattice.shape) == 2:
+            lattice = lattice.unsqueeze(0)
         lattice_nodes = torch.repeat_interleave(lattice, num_atoms, dim=0)
 
         inv_lattice = torch.inverse(lattice)
@@ -239,11 +208,7 @@ class Structure:
 
     @staticmethod
     def correct_frac_coords(frac_coords, batch):
-        new_frac_coords = frac_coords + 0.5
-        out_cell_mask = (new_frac_coords > 1.) | (new_frac_coords < 0.)
-        new_frac_coords[out_cell_mask] = new_frac_coords[out_cell_mask] % 1.
-
-        new_frac_coords = new_frac_coords - 0.5
+        new_frac_coords = (frac_coords + 0.5) % 1. - 0.5
         min_frac_coords = scatter(new_frac_coords, batch, dim=0, reduce='min')
         max_frac_coords = scatter(new_frac_coords, batch, dim=0, reduce='max')
         offset_frac_coords = (min_frac_coords + max_frac_coords) / 2.0
