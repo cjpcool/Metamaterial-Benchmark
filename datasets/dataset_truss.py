@@ -46,10 +46,16 @@ class LatticeModulus(LatticeTruss):
                                torch.FloatTensor(exported_lattice['Nodal positions']).squeeze(1), is_cartesian=False,
                                properties=properties,
                                properties_names=self.properties_names)
+                # filter data that contains node clusters.
+                cart_coords_temp = S1.cart_coords.to(torch.float32)
+                dist_mat = torch.cdist(cart_coords_temp, cart_coords_temp) + torch.eye(cart_coords_temp.shape[0], dtype=torch.float32)
+                if torch.any(dist_mat < 1e-5):
+                    print('Error sample {}, close distance. skip it.'.format(i))
+                    continue
             except KeyError:
                 print('Error sample {}, skip it.'.format(i))
                 continue
-            edge_num = S1.edge_index.shape[1].item()
+            edge_num = S1.edge_index.shape[1]
             node_feat = torch.zeros((S1.num_nodes, 1), dtype=torch.long)
             edge_feat = torch.zeros((edge_num, 1), dtype=torch.float32)
             edge_num = S1.num_edges
@@ -110,8 +116,8 @@ class LatticeStiffness(LatticeTruss):
         print(len(df))
         data_list = []
 
-        # for i in tqdm(range(len(df))):
-        for i in tqdm(range(100)):
+        for i in tqdm(range(len(df))):
+        # for i in tqdm(range(100)):
             dfi = df.iloc[i]
             exported_lattice = Topology(dfi)
 
@@ -159,12 +165,7 @@ def main():
     from torch_geometric.loader import DataLoader
     from utils.lattice_utils import plot_lattice
 
-    dataset = LatticeStiffness('D:\项目\Material design\code_data\data\LatticeStiffness', file_name='training')
-    # dataset = LatticeStiffness('/home/jianpengc/datasets/metamaterial/LatticeStiffness', file_name='training')
-    # dataset = LatticeModulus('/home/jianpengc/datasets/metamaterial/LatticeModulus', file_name='data_node_num32')
-    # dataset = LatticeModulus('D:\项目\Material design\code_data\data\LatticeModulus', file_name='data')
-    # dataset = LatticeStiffness('/home/jianpengc/datasets/metamaterial/LatticeStiffness', file_name='training_node_num47')
-    # dataset = LatticeModulus('/home/jianpengc/datasets/metamaterial/LatticeModulus', file_name='data_node_num32')
+    dataset = LatticeModulus('D:\项目\Material design\code_data\data\LatticeModulus')
 
     split_idx = dataset.get_idx_split(len(dataset), train_size=5, valid_size=5, seed=42)
     print(split_idx.keys())
