@@ -14,7 +14,7 @@ import networkx as nx
 from jedi.api import file_name
 from scipy.spatial import distance
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
-from datasets.dataset_truss import LatticeTruss
+from datasets.baseDataset import LatticeTruss
 from utils.mat_utils import lattice_params_to_matrix, frac_to_cart_coords
 from itertools import combinations
 from sklearn.neighbors import NearestNeighbors
@@ -22,6 +22,12 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
 from sklearn.utils import shuffle
 
+
+def pad_to_max_length(fps_list,max_length, padding_value=0):
+    # Pad each fingerprint to the max_length with the specified padding_value
+    padded_fps = [np.pad(fp, ((0,max_length - len(fp)), (0,0)), 'constant', constant_values=(padding_value)) for fp in fps_list]
+    print(list(fp.shape[0] for fp in padded_fps))
+    return np.array(padded_fps)
 
 
 class LatticeEvaluatorMaster():
@@ -55,28 +61,6 @@ class LatticeEvaluatorMaster():
 
 
 class LatticeEvaluator(LatticeEvaluatorMaster):
-    '''
-    Evaluate generated lattice:
-        Graph Level validity:
-            1. Central symmetry ratio:
-            2. Periodic boundary conditions test
-            3. Connectivity test
-            4. Periodic ratio: TODO: wangzhi PBC ratio
-        Condition guide effectiveness:
-            1.
-
-        lattice validity:
-            TODO
-
-    Statistic evaluation on mass generated data.
-
-    Evaluate reconstructed graph:
-        Edge Level:
-            TODO:
-        Node Level:
-            TODO:
-
-    '''
     def __init__(self,
                  test_datset: LatticeTruss=None,
                  eval_file_path: str=None,
@@ -111,28 +95,29 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             self.data_size_for_eval = data_size_for_eval
         else:
             self.data_size_for_eval = len(test_datset)
-        assert self.cluster_size > self.data_size_for_eval, 'data_size_for_eval < cluster_size'
+        assert self.cluster_size <= self.data_size_for_eval, 'data_size_for_eval < cluster_size'
 
 
     def eval_condition_effectiveness(self, y_cond, x_gen):
         node_num = x_gen.shape[0]
-        idx_node_num = np.array([i for  i in range(len(self.test_dataset)) if self.test_dataset[i].num_nodes == node_num])
+        idx_node_num = [i for i in range(len(self.test_dataset)) if self.test_dataset[i].num_nodes == node_num]
         if self.data_size_for_eval > len(idx_node_num):
-            print(f'Node number f{node_num} of evaluated lattice is smaller than hyperparameters, setting eval size to f{len(idx_node_num)}')
+            print(f'Node number {node_num} of evaluated lattice is smaller than data_size_for_eval, setting eval size to {len(idx_node_num)}')
             right = len(idx_node_num)
         else:
             right = self.data_size_for_eval
+
         selected_idx = shuffle(idx_node_num)[:right]
-        selected_dataset =  self.test_dataset[selected_idx]
-        return self.condition_effectiveness(y_cond, x_gen, selected_dataset, node_num, self.cluster_size)
+        selected_dataset =  self.test_dataset.copy(selected_idx)
+        cluster_size = min(self.cluster_size, len(selected_idx))
+
+        return self.condition_effectiveness(y_cond, x_gen, selected_dataset, node_num, cluster_size)
 
     def eval_graph_validity(self):
         return self.graph_validity(self.cart_coords, self.edges, self.lattice_vectors)
 
     def eval_diversity(self):
-        train_x =  self.test_dataset.pos
-        if isinstance(train_x, torch.Tensor):
-            train_x = train_x.cpu().numpy()
+        train_x =  [x.cart_coords for x in self.test_dataset]
 
         metrics_dict, _ = self.compute_cov(self.cart_coords, train_x, self.diversity_error_bar)
 
@@ -149,11 +134,11 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         if num_gen_strcuture is None:
             num_gen_crystals = len(struc_fps)
 
+        max_length = max(max(fp.shape[0] for fp in gt_struc_fps),max(fp.shape[0] for fp in struc_fps))
+        struc_fps = pad_to_max_length(struc_fps, max_length=max_length)
+        gt_struc_fps = pad_to_max_length(gt_struc_fps,max_length)
 
-        struc_fps = np.array(struc_fps)
-        gt_struc_fps = np.array(gt_struc_fps)
-
-        struc_pdist = cdist(struc_fps, gt_struc_fps)
+        struc_pdist = cdist(struc_fps.reshape(struc_fps.shape[0], -1), gt_struc_fps.reshape(gt_struc_fps.shape[0], -1))
 
         struc_recall_dist = struc_pdist.min(axis=0)
         struc_precision_dist = struc_pdist.min(axis=1)
@@ -270,22 +255,14 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
     @staticmethod
     def condition_effectiveness(y_cond, x_gen, test_data, node_num, cluster_size=100):
         # only support for same node numbers.
-        train_y, train_x = test_data.y, test_data.pos
-        if isinstance(y_cond, torch.Tensor):
-            y_cond = y_cond.cpu().numpy()
-        # if isinstance(x_cond, torch.Tensor):
-        #     x_cond = x_cond.cpu().numpy()
-        if isinstance(x_gen, torch.Tensor):
-            x_gen = x_gen.cpu().numpy()
-        if isinstance(train_y, torch.Tensor):
-            train_y = train_y.cpu().numpy()
-        if isinstance(train_x, torch.Tensor):
-            train_x = train_x.cpu().numpy()
+        data_num = len(test_data)
+        train_x = test_data.data.cart_coords.view(data_num, -1)
+        train_y = test_data.data.y.view(data_num, -1)
 
-        data_num = train_y.shape[0] // node_num
-        train_y = train_y.reshape[data_num, -1]
+        # train_x = train_x.cpu().numpy()
+        # train_y = train_y.cpu().numpy()
         # x_cond = x_cond.reshape(1, -1)
-        x_gen = x_gen.reshape(1, -1)
+        x_gen = x_gen.reshape(y_cond.shape[0], -1)
 
         neigh_x = NearestNeighbors(n_neighbors=cluster_size, metric='euclidean')
         neigh_x.fit(train_x)
@@ -307,9 +284,9 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         # res = kmeans.fit_predict(x)
         # nmi = nmi_score(labels, res, average_method='arithmetic')
 
-        distance = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=1)).mean()
+        distance, indices = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).min(axis=1)
 
-        return distance
+        return distance.item()
 
 
 

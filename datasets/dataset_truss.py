@@ -7,7 +7,7 @@ from utils.lattice_utils import Topology, scale_to_cell
 import pickle
 
 from torch_geometric.data import Data
-from baseDataset import LatticeTruss
+from datasets.baseDataset import LatticeTruss
 
 
 class LatticeModulus(LatticeTruss):
