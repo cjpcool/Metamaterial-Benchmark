@@ -1,10 +1,12 @@
 import os
 import sys
+import warnings
 
 from scipy.spatial.distance import cdist
 
+from datasets.dataset_truss import LatticeStiffness
+
 sys.path.append('../')
-print(sys.path)
 from typing import List
 
 import torch
@@ -15,7 +17,7 @@ from jedi.api import file_name
 from scipy.spatial import distance
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
 from datasets.baseDataset import LatticeTruss
-from utils.mat_utils import lattice_params_to_matrix, frac_to_cart_coords
+from eval_utils import lattice_params_to_matrix, frac_to_cart_coords
 from itertools import combinations
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import KMeans
@@ -26,7 +28,6 @@ from sklearn.utils import shuffle
 def pad_to_max_length(fps_list,max_length, padding_value=0):
     # Pad each fingerprint to the max_length with the specified padding_value
     padded_fps = [np.pad(fp, ((0,max_length - len(fp)), (0,0)), 'constant', constant_values=(padding_value)) for fp in fps_list]
-    print(list(fp.shape[0] for fp in padded_fps))
     return np.array(padded_fps)
 
 
@@ -69,11 +70,12 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
                  node_types: List[np.ndarray] = None,
                  edges: List[np.ndarray] = None,
                  lattice_vectors: List[np.ndarray] = None,
-                 cluster_size: int = 100,
+                 cluster_size: int = 50,
                  data_size_for_eval: int = None,
                  central_symmetry_error_bar=1e-1,
                  periodic_error_bar=1e-5,
                  diversity_error_bar=0.2):
+
         super().__init__(
             cart_coords,
             frac_coords,
@@ -82,12 +84,22 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             lattice_vectors
         )
 
+        if eval_file_path is not None:
+            self.__read_eval_data(eval_file_path)
+        else:
+            self.cart_coords = cart_coords
+            self.frac_coords = frac_coords
+            self.node_types = node_types
+            self.edges = edges
+            self.lattice_vectors = lattice_vectors
+
+
+
         self.central_symmetry_error_bar = central_symmetry_error_bar
         self.periodic_error_bar = periodic_error_bar
         self.diversity_error_bar = diversity_error_bar
 
-        if eval_file_path is not None:
-            self.__read_eval_data(eval_file_path)
+
 
         self.test_dataset = test_datset
         self.cluster_size = cluster_size
@@ -98,11 +110,22 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         assert self.cluster_size <= self.data_size_for_eval, 'data_size_for_eval < cluster_size'
 
 
+    def evaluate_all_uncondition_generation(self):
+        cov_r, cov_p = self.eval_diversity()
+        periodicity_ratio, mean_symmetry, connectivity_ratio, dangling_node_ratio = self.eval_graph_validity()
+
+
     def eval_condition_effectiveness(self, y_cond, x_gen):
+        '''
+
+        :param y_cond: conditioned property, shape=(1,prop_dim)
+        :param x_gen: generated coordinates, shape=(node_num, 3)
+        :return:
+        '''
         node_num = x_gen.shape[0]
         idx_node_num = [i for i in range(len(self.test_dataset)) if self.test_dataset[i].num_nodes == node_num]
         if self.data_size_for_eval > len(idx_node_num):
-            print(f'Node number {node_num} of evaluated lattice is smaller than data_size_for_eval, setting eval size to {len(idx_node_num)}')
+            warnings.warn(f'Node number {node_num} of evaluated lattice is smaller than data_size_for_eval, setting eval size to {len(idx_node_num)}')
             right = len(idx_node_num)
         else:
             right = self.data_size_for_eval
@@ -111,7 +134,9 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         selected_dataset =  self.test_dataset.copy(selected_idx)
         cluster_size = min(self.cluster_size, len(selected_idx))
 
-        return self.condition_effectiveness(y_cond, x_gen, selected_dataset, node_num, cluster_size)
+        dist = self.condition_effectiveness(y_cond, x_gen, selected_dataset, node_num, cluster_size)
+        print(dist)
+        return dist
 
     def eval_graph_validity(self):
         return self.graph_validity(self.cart_coords, self.edges, self.lattice_vectors)
@@ -120,7 +145,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         train_x =  [x.cart_coords for x in self.test_dataset]
 
         metrics_dict, _ = self.compute_cov(self.cart_coords, train_x, self.diversity_error_bar)
-
+        print(metrics_dict)
         return metrics_dict['cov_recall'], metrics_dict['cov_precision']
 
 
@@ -284,7 +309,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         # res = kmeans.fit_predict(x)
         # nmi = nmi_score(labels, res, average_method='arithmetic')
 
-        distance, indices = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).min(axis=1)
+        distance,_ = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).min(axis=1)
 
         return distance.item()
 
@@ -381,88 +406,31 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
 
 
-# def evaluate_lattice_in_path(path, error_bar=0.2, refind_lattice_vector=False):
-#     import os
-#     file_names = os.listdir(path)
-#     periodicity = []
-#     connectivity = []
-#     symmetry_ratio = []
-#
-#     for file_name in file_names:
-#         full_path = os.path.join(path, file_name)
-#         lattice_npz = np.load(full_path)
-#         frac_coords = lattice_npz['frac_coords']
-#         lattice_lengths = lattice_npz['lengths']
-#         lattice_angles = lattice_npz['angles']
-#         atom_types = lattice_npz['atom_types']
-#         edge_index = lattice_npz['edge_index']
-#         if refind_lattice_vector:
-#             lattice_vector = find_lattice_vectors(frac_coords)
-#         else:
-#             try:
-#                 lattice_vector = lattice_npz['vector']
-#             except:
-#                 lattice_vector = lattice_params_to_matrix(lattice_lengths[0],lattice_lengths[1],lattice_lengths[2],
-#                                                   lattice_angles[0], lattice_angles[1], lattice_angles[2])
-#
-#         periodicity.append(LatticeEvaluator.is_periodic_necessary_condition(frac_coords, lattice_vector.reshape(3,3), error_bar=error_bar))
-#         connectivity.append(LatticeEvaluator.is_connected(edge_index))
-#         symmetry_ratio.append(LatticeEvaluator.central_symmetry(frac_coords, error_bar = error_bar))
-#
-#     print(periodicity)
-#     print(connectivity)
-#     print(symmetry_ratio)
-#
-#
-#
-#     periodicity_ratio = np.array(periodicity).sum() / len(periodicity)
-#     print(f"Periodicity rate: {periodicity_ratio}")
-#     mean_symmetry = np.array(symmetry_ratio).mean()
-#     print(f"Mean Central Symmetry: {mean_symmetry}")
-#     # print(f"Valid Central Symmetry rate: {(np.array(symmetry_ratio)>0).sum() / len(symmetry_ratio)}")
-#
-#     connectivity_ratio = np.array(connectivity).sum() / len(connectivity)
-#     print(f"Connectivity rate: {connectivity_ratio}")
-
-
-
-
-
-
-
-
-
-
 
 if __name__ == '__main__':
-    nodes = np.array(
-        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 1.0],
-         [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]])
-    edges = np.array(
-        [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]).T
-    lattice_lengths = np.array([1.0, 1.0, 1.0])  #
-    lattice_angles = np.array([90, 90, 90])  #
+    ## Example for evaluating generation task
+    '''
+    Saving lattices:
+            np.savez(lattice_name,
+                atom_types=gen_atom_types_list[i],
+                lengths=gen_lengths_list[i],
+                angles=gen_angles_list[i],
+                frac_coords=gen_frac_coords_list[i],
+                edge_index=edge_index_list[i],
+                prop_list=prop_list[i]
+                )
+    The following codes will print:
+    {'cov_recall': 0.0, 'cov_precision': 0.0, 'amsd_recall': 10.602191118204289, 'amsd_precision': 13.421280170913064}
+    Periodicity rate: 0.0
+    Mean Central Symmetry rate: 0.5374038704332712
+    Connectivity rate: 1.0
+    Dangling rate: 0.0
+    '''
+    dataset = LatticeStiffness('D:\项目\Material design\code_data\data\LatticeStiffness')
+    evaluator = LatticeEvaluator(test_datset=dataset, eval_file_path='D:\\Workspace\\PhD_workspace\\MetaMatGen\\generated_mat\\lattices\\lattices')
+    evaluator.evaluate_all_uncondition_generation()
 
-
-    # lattice_vectors = find_lattice_vectors(nodes)
-    # print("Lattice Vectors:\n", lattice_vectors)
-    # periodicity = LatticeEvaluator.central_symmetry(nodes, error_bar=0.1)
-    # print("Periodicity:", periodicity)
-
-
-    evaluate_lattice_in_path('D:\\Workspace\\PhD_workspace\\MetaMatGen\\generated_mat\\lattices\\lattices')
-    #
-    #
-    # lattice_vector = lattice_params_to_matrix(lattice_lengths[0],lattice_lengths[1],lattice_lengths[2],
-    #                                           lattice_angles[0], lattice_angles[1], lattice_angles[2])
-    #
-    #
-    # periodicity = is_periodic_necessary_condition(nodes, lattice_vector)
-    # periodicity = is_periodic(nodes, lattice_lengths)
-    # print(f"Periodicity: {periodicity}")
-    #
-    # connectivity = is_connected(edges)
-    # print(f"Connectivity: {connectivity}")
-    #
-    # symmetry = central_symmetry(nodes)
-    # print(f"Symmetry: {symmetry}")
+    # Example for evaluating conditional generation task
+    y_cond = torch.randn((1, 21))  # condition
+    x_gen = torch.randn((15, 3))   # generated lattice conditioned on y_cond
+    effectiveness = evaluator.eval_condition_effectiveness(y_cond, x_gen)

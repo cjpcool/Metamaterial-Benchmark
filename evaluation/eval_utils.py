@@ -71,6 +71,7 @@ def frac_to_cart_coords(
         lattice,
         num_atoms,
 ):
+    frac_coords = ndarry_to_tensor(frac_coords)
     lattice = ndarry_to_tensor(lattice)
     num_atoms = ndarry_to_tensor(num_atoms)
 
