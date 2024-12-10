@@ -1,6 +1,12 @@
 import os
 import sys
 import warnings
+import copy
+import numpy as np
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import LinearOperator, cg
+from scipy.sparse import csr_matrix, eye
+from scipy.sparse.linalg import spilu
 
 from scipy.spatial.distance import cdist
 
@@ -99,7 +105,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         self.periodic_error_bar = periodic_error_bar
         self.diversity_error_bar = diversity_error_bar
 
-
+        self.property_calculator = Property_Calculator()
 
         self.test_dataset = test_datset
         self.cluster_size = cluster_size
@@ -316,14 +322,89 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
 
     # TODO:  @Wangzhi
-    @staticmethod
-    def periodical_ratio():
-        '''
-        TODO:  @Wangzhi
-        Returns:
+    def periodical_degree(self, x_gen, heuristic_attempts=500):
+        # this method suppose x_gen to be batch_size * (3node_num) or batch_size * node_num * 3
+        # return a periodicity degree measure, between 0, 1, with 0 being the best, 1 the worst
+        x_gen1 = copy.deepcopy(x_gen).reshape((x_gen.shape[0],-1,3)).astype(np.float64)
+        x_gen1 -= np.mean(x_gen1,axis=1,keepdims=True)
+        us = np.zeros((x_gen1.shape[0],3,3))
+        for i in range(x_gen1.shape[0]):
+            u = np.random.random((3,3))
+            u = self.__cal_axis(u[0],u[1])
+            temp_dist = self.__cal_largest_poker(x_gen1[i],u)
+            for _ in range(3):
+                u1 = np.random.random((3,3))
+                u1 = self.__cal_axis(u[0],u[1])
+                if self.__cal_largest_poker(x_gen1[i],u1) < temp_dist:
+                    temp_dist = self.__cal_largest_poker(x_gen1[i],u1)
+                    u = u1
+            for j in range(heuristic_attempts):
+                ini_u = copy.deepcopy(u)
+                dist0 = self.__cal_largest_poker(x_gen1[i],np.array(u))
+                u = self.__shift_axis(u[0],u[1],amplitude=np.sqrt(j)*0.002)
+                dist1 = self.__cal_largest_poker(x_gen1[i],np.array(u))
+                if dist1 > dist0:
+                    u = ini_u
+                else:
+                    u -= 0.2*(ini_u - u)
+            us[i] += u
+        dev = self.__cal_deviation(us,x_gen1)
+        return dev
+    
+    def __cal_axis(self, u0, u1, u2=None):
+        u0 = u0 / np.linalg.norm(u0,axis=-1,keepdims=True)
+        u1 = u1 - np.sum(u0*u1,axis=-1)*u0
+        u1 = u1 / np.linalg.norm(u1,axis=-1,keepdims=True)
+        u2 = np.cross(u0,u1,axis=-1)
+        u2 = u2 / np.linalg.norm(u2,axis=-1,keepdims=True)
+        return np.array([u0, u1, u2])
+    
+    def __shift_axis(self, u0, u1, u2=None, amplitude=0.01):
+        axis_0 = np.random.rand() > 0.5
+        which_dim = np.random.choice([0, 1, 2])
+        increase = np.random.rand() > 0.5
+        if increase:
+            if axis_0:
+                #print(u0.shape)
+                u0[which_dim] += amplitude
+            else:
+                u1[which_dim] += amplitude
+        else:
+            if axis_0:
+                #print(u0.shape)
+                u0[which_dim] -= amplitude
+            else:
+                u1[which_dim] -= amplitude
+        return self.__cal_axis(u0, u1)
 
-        '''
-        pass
+    def __cal_largest_poker(self, x_gen_one, u):
+        dists = np.abs(np.sum(x_gen_one[:, np.newaxis, :] * u[np.newaxis, :, :],axis=-1))
+        max_dist = np.max(dists)
+        return max_dist
+        
+    def __cal_deviation(self, us, x_gen, shell_threshold=0.9):
+        dists = np.sum(x_gen[:, :, np.newaxis, :] * us[:, np.newaxis, :, :],axis=-1)
+        dev = np.zeros(x_gen.shape[0])
+        for i in range(x_gen.shape[0]):
+            temp_dev = []
+            half_size = np.max(np.abs(dists[i]))
+            for j in range(dists.shape[1]):
+                #not a shell node
+                if np.max(np.abs(dists[i,j,:])) < shell_threshold * half_size:
+                    continue
+                dist = 4*half_size
+                for k in range(dists.shape[1]):
+                    if j == k: continue
+                    temp_vec = np.abs(dists[i,j] - dists[i,k])
+                    temp_vec[np.argmax(temp_vec)] = np.abs(1 - temp_vec[np.argmax(temp_vec)])
+                    if np.linalg.norm(temp_vec) < dist:
+                        dist = np.linalg.norm(temp_vec)
+                temp_dev.append(dist)
+            dev[i] = np.mean(temp_dev)
+        return dev
+    
+    def cal_property(self,coords,edges,radius=0.1):
+        return self.property_calculator.calculate_properties(coords,edges,radius)
 
 
     @staticmethod
@@ -402,7 +483,328 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         central_symmetry_rate = symmetry_node_rate * (1 / symmetry_node_num) * (is_symmetry_per_node * s_error_i_ratio).sum()
         return central_symmetry_rate
 
+class Property_Calculator:
+    def calculate_relative_density(self, coords, edges, radius=0.1):
+        lengths = np.zeros(len(edges))
+        for i, edge in enumerate(edges):
+            start = coords[edge[0]]  # -1 since edges are 1-indexed
+            end = coords[edge[1]]
+            lengths[i] = np.linalg.norm(end - start)
+        length = np.sum(lengths)
+        volume = length * np.pi * radius**2
+        density = volume / 1
 
+        return density
+
+    def calculate_properties(self,coords, edges, radius=0.1, resolution_voxel=40):
+        voxel, Density = self.generate_voxel(resolution_voxel,(coords, edges), radius)
+        CH = self.homo3D(1,1,1,0.5769,0.3846, voxel)
+        properties = self.from_C_to_properties(CH)
+        density = self.calculate_relative_density(coords, edges, radius)
+        properties['density'] = density
+        properties['Density'] = Density
+
+        return properties
+
+    # def calculate_properties(coords, edges):
+    #     voxel, Density = generate_voxel(10,(coords, edges),0.1)
+    #     CH = homo3D(1,1,1,0.5769,0.3846, voxel)
+    #     properties = from_C_to_properties(CH)
+    #     return properties
+
+    def generate_voxel(self,n, lattice, radius):
+        """
+        Generate a voxel grid and calculate the relative density.
+        
+        Parameters:
+            n (int): Number of voxels along each axis.
+            address (str): File location of the wireframe.
+            radius (float): Radius for determining active voxels.
+            
+        Returns:
+            tuple: Voxel grid (3D numpy array) and density (float).
+        """
+        size = 1.0 / n               # initial size of voxels
+        voxel = np.zeros((n, n, n))  # initial grid with zeros
+
+        # Generate a list of centers of voxel
+        voxel_c = np.zeros((n**3, 6))
+        p = 0                        # p count the number of all voxels
+        for i in range(1, n + 1):    # i for z axis
+            for j in range(1, n + 1):# j for y axis
+                for k in range(1, n + 1): # k for x axis
+                    p += 1
+                    voxel_c[p-1, 0:3] = [k, j, i]  # save index along x,y,z axis
+                    # save coordinate along x,y,z axis
+                    voxel_c[p-1, 3:6] = [(k-0.5)*size, (j-0.5)*size, (i-0.5)*size]
+
+        # Get the voxel close to the strut within a certain distance
+        node, strut = lattice # get the information of strut
+        for i in range(len(voxel_c)):      # for each voxel, decide if it is active
+            center = voxel_c[i, 3:6]       # voxel center position
+            for j in range(len(strut)):    # for each strut, get the distance to the voxel
+                # start_n = node[strut[j, 0] - 1, :]  # start node coordinate
+                start_n = node[strut[j, 0], :]  # start node coordinate
+                end_n = node[strut[j, 1], :]    # end node coordinate
+
+                # determine if alpha and beta are acute angles
+                alpha = np.degrees(np.arccos(np.dot((center - start_n), (end_n - start_n)) / 
+                                            (np.linalg.norm(center - start_n) * np.linalg.norm(end_n - start_n))))
+                beta = np.degrees(np.arccos(np.dot((center - end_n), (start_n - end_n)) / 
+                                        (np.linalg.norm(center - end_n) * np.linalg.norm(start_n - end_n))))
+
+                if alpha < 90 and beta < 90:  # if not acute angle, distance to line
+                    distance = np.linalg.norm(np.cross(end_n - start_n, center - start_n)) / np.linalg.norm(end_n - start_n)
+                else:                         # if it is acute angle, distance to node
+                    distance = min(np.linalg.norm(center - start_n), np.linalg.norm(center - end_n))
+                
+                if distance <= radius:        # if distance less than radius, activate it
+                    voxel[int(voxel_c[i, 0]) - 1, int(voxel_c[i, 1]) - 1, int(voxel_c[i, 2]) - 1] = 1
+                    break  # move to the next voxel
+
+        density = np.sum(voxel) / n**3  # calculate the relative density
+        
+        return voxel, density
+
+
+
+    def homo3D(self,lx, ly, lz, lambda_, mu, voxel):
+        """
+        Calculate the effective stiff matrix of lattice structure from the voxel data.
+        
+        Parameters:
+            lx, ly, lz (float): unit cell size.
+            lambda_, mu (float): Material properties
+            voxel (NxNxN array): structure of the lattice
+        Returns:
+            CH (6x6 array): the effective stiff matrix Cijkl.
+        """
+        # Initialize
+        nelx, nely, nelz = voxel.shape
+        dx = lx / nelx
+        dy = ly / nely
+        dz = lz / nelz
+        nel = nelx * nely * nelz
+
+        # Compute element stiffness matrices
+        keLambda, keMu, feLambda, feMu = self.hexahedron(dx/2, dy/2, dz/2)
+
+        # Node numbers and element degrees of freedom for full (not periodic) mesh
+        nodenrs = np.arange(1, (1 + nelx) * (1 + nely) * (1 + nelz) + 1).reshape((1 + nelx, 1 + nely, 1 + nelz))
+        edofVec = (3 * nodenrs[:-1, :-1, :-1] + 1).flatten()
+        # addx = np.append([0, 1, 2], [3 * nelx + np.array([3, 4, 5, 0, 1, 2])])
+        # addx = np.append(addx, [-3, -2, -1])
+        addx = np.append([0, 1, 2], [3 * nelx + np.array([3, 4, 5, 0, 1, 2])])
+        addx = np.append(addx, [-3, -2, -1])
+        addxy = 3 * (nely + 1) * (nelx + 1) + addx
+        edof = np.tile(edofVec[:, np.newaxis], (1, 24)) + np.tile(np.concatenate([addx, addxy]), (nel, 1))
+
+        # Impose periodic boundary conditions
+        nn = (nelx + 1) * (nely + 1) * (nelz + 1)  # Total number of nodes
+        nnP = nelx * nely * nelz  # Total number of unique nodes
+        nnPArray = np.arange(1, nnP + 1).reshape(nelx, nely, nelz)
+        nnPArray = np.pad(nnPArray, ((0, 1), (0, 1), (0, 1)), mode='wrap')
+        dofVector = np.zeros(3 * nn, dtype=int)
+        dofVector[0::3] = 3 * nnPArray.flatten() - 2
+        dofVector[1::3] = 3 * nnPArray.flatten() - 1
+        dofVector[2::3] = 3 * nnPArray.flatten()
+        #edof = dofVector[edof.flatten()].reshape(edof.shape)
+        edof = edof-1
+        edof = dofVector[edof]
+        
+        ndof = 3 * nnP
+
+        # ASSEMBLE GLOBAL STIFFNESS MATRIX AND LOAD VECTORS
+        # Indexing vectors
+        iK = np.kron(edof, np.ones((24, 1))).T
+        jK = np.kron(edof, np.ones((1, 24))).T
+        # Material properties assigned to voxels with materials
+        lambda_ = lambda_ * (voxel == 1)
+        mu = mu * (voxel == 1)
+        # The corresponding stiffness matrix entries
+        sK = np.outer(keLambda.flatten('F'), lambda_.flatten('F')) + np.outer(keMu.flatten('F'), mu.flatten('F'))
+        K = csr_matrix((sK.flatten('F'), (iK.flatten('F')-1, jK.flatten('F')-1)), shape=(ndof, ndof))
+        K = 0.5 * (K + K.T)
+
+        # Assembly three load cases corresponding to the three strain cases
+        iF = np.tile(edof.T, (6, 1))
+        jF = np.vstack([np.ones((24, nel)), 2 * np.ones((24, nel)), 3 * np.ones((24, nel)),
+                        4 * np.ones((24, nel)), 5 * np.ones((24, nel)), 6 * np.ones((24, nel))])
+        sF = np.outer(feLambda.flatten('F'), lambda_.flatten('F')) + np.outer(feMu.flatten('F'), mu.flatten('F'))
+        F = csr_matrix((sF.flatten('F'), (iF.flatten('F')-1, jF.flatten('F')-1)), shape=(ndof, 6))
+
+        # SOLUTION
+        # solve by PCG method, remember to constrain one node
+        activedofs = edof[voxel.flatten() == 1, :]
+        activedofs = np.sort(np.unique(activedofs))
+    # activedofs = activedofs-1
+        X = np.zeros((ndof, 6))
+        #L = splu(K[activedofs[3:], :][:, activedofs[3:]])
+        
+    # for i in range(6):
+    #     X[activedofs[3:], i] = L.solve(F[activedofs[3:], i])
+        K_act = K[activedofs[3:]-1, :][:, activedofs[3:]-1]
+        K_act = csc_matrix(K_act)  # Convert matrix to CSC format
+        epsilon = 1e-6
+        K_act = K_act + epsilon * eye(K_act.shape[0])
+        M = LinearOperator(K_act.shape, spilu(K_act).solve)
+        # Ensure b is a proper 1D vector
+        for i in range(6):
+            b = F[activedofs[3:]-1, i].toarray().flatten()  # Convert to 1D array if it's a sparse matrix
+            X[activedofs[3:]-1, i], _ = cg(K_act, b, maxiter=300, M=M)
+
+
+        # HOMOGENIZATION
+        # The displacement vectors corresponding to the unit strain cases
+        X0 = np.zeros((nel, 24, 6))
+        # The element displacements for the six unit strains
+        X0_e = np.zeros((24, 6))
+        ke = keMu + keLambda  # Here the exact ratio does not matter, because
+        fe = feMu + feLambda  # it is reflected in the load vector
+        X0_e[np.array([3, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]), :] = \
+            np.linalg.solve(ke[np.array([3, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]), 
+                                    :][:, np.array([3, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])], 
+                            fe[np.array([3, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]), :])
+        
+        for i in range(6):
+            X0[:, :, i] = np.kron(X0_e[:, i].T[np.newaxis, :], np.ones((nel, 1)))
+
+        CH = np.zeros((6, 6))
+        volume = lx * ly * lz
+        for i in range(6):
+            for j in range(6):
+                sum_L = np.dot((X0[:, :, i] - X.flatten('F')[edof.flatten('F')-1 + (i) * ndof].reshape(nnP, 24, order='F')), keLambda) * \
+                        (X0[:, :, j] - X.flatten('F')[edof.flatten('F')-1 + (j) * ndof].reshape(nnP, 24, order='F'))
+                sum_M = np.dot((X0[:, :, i] - X.flatten('F')[edof.flatten('F')-1 + (i) * ndof].reshape(nnP, 24, order='F')), keMu) * \
+                        (X0[:, :, j] - X.flatten('F')[edof.flatten('F')-1 + (j)* ndof].reshape(nnP, 24, order='F'))
+                sum_L = np.reshape(np.sum(sum_L, axis=1), (nelx, nely, nelz))
+                sum_M = np.reshape(np.sum(sum_M, axis=1), (nelx, nely, nelz))
+                CH[i, j] = np.sum(lambda_ * sum_L + mu * sum_M)
+        CH = 1 / volume * CH
+        return CH
+
+
+    def hexahedron(self, a, b, c):
+        # Constitutive matrix contributions
+        CMu = np.diag([2, 2, 2, 1, 1, 1])
+        CLambda = np.zeros((6, 6))
+        CLambda[0:3, 0:3] = 1
+        
+        # Three Gauss points in both directions
+        xx = [-np.sqrt(3/5), 0, np.sqrt(3/5)]
+        yy = xx
+        zz = xx
+        ww = [5/9, 8/9, 5/9]
+        
+        # Initialize
+        keLambda = np.zeros((24, 24))
+        keMu = np.zeros((24, 24))
+        feLambda = np.zeros((24, 6))
+        feMu = np.zeros((24, 6))
+        
+        for ii in range(len(xx)):
+            for jj in range(len(yy)):
+                for kk in range(len(zz)):
+                    # Integration point
+                    x = xx[ii]
+                    y = yy[jj]
+                    z = zz[kk]
+                    
+                    # Stress strain displacement matrix
+                    qx = np.array([-((y-1)*(z-1))/8, ((y-1)*(z-1))/8, -((y+1)*(z-1))/8,
+                                ((y+1)*(z-1))/8, ((y-1)*(z+1))/8, -((y-1)*(z+1))/8,
+                                ((y+1)*(z+1))/8, -((y+1)*(z+1))/8])
+                    
+                    qy = np.array([-((x-1)*(z-1))/8, ((x+1)*(z-1))/8, -((x+1)*(z-1))/8,
+                                ((x-1)*(z-1))/8, ((x-1)*(z+1))/8, -((x+1)*(z+1))/8,
+                                ((x+1)*(z+1))/8, -((x-1)*(z+1))/8])
+                    
+                    qz = np.array([-((x-1)*(y-1))/8, ((x+1)*(y-1))/8, -((x+1)*(y+1))/8,
+                                ((x-1)*(y+1))/8, ((x-1)*(y-1))/8, -((x+1)*(y-1))/8,
+                                ((x+1)*(y+1))/8, -((x-1)*(y+1))/8])
+                    
+                    # Jacobian
+                    J = np.array([qx, qy, qz]) @ np.array([[-a, a, a, -a, -a, a, a, -a],
+                                                        [-b, -b, b, b, -b, -b, b, b],
+                                                        [-c, -c, -c, -c, c, c, c, c]]).T
+                    qxyz = np.linalg.inv(J) @ np.array([qx, qy, qz])
+                    
+                    B_e = np.zeros((6, 3, 8))
+                    for i_B in range(8):
+                        B_e[:, :, i_B] = np.array([
+                            [qxyz[0, i_B], 0, 0],
+                            [0, qxyz[1, i_B], 0],
+                            [0, 0, qxyz[2, i_B]],
+                            [qxyz[1, i_B], qxyz[0, i_B], 0],
+                            [0, qxyz[2, i_B], qxyz[1, i_B]],
+                            [qxyz[2, i_B], 0, qxyz[0, i_B]]
+                        ])
+                    
+                    B = np.hstack([B_e[:, :, i] for i in range(8)])
+                    
+                    # Weight factor at this point
+                    weight = np.linalg.det(J) * ww[ii] * ww[jj] * ww[kk]
+                    
+                    # Element matrices
+                    keLambda += weight * B.T @ CLambda @ B
+                    keMu += weight * B.T @ CMu @ B
+                    
+                    # Element loads
+                    feLambda += weight * B.T @ CLambda
+                    feMu += weight * B.T @ CMu
+        
+        return keLambda, keMu, feLambda, feMu
+
+
+    def from_C_to_properties(self, C):
+        # Add a small value to diagonal elements to ensure matrix is not singular
+        # Check if C is singular or nearly singular
+        # Check if input is a 2D array
+        if not isinstance(C, np.ndarray) or C.ndim != 2:
+            raise ValueError("Input C must be a 2D numpy array")
+            
+        # Check if matrix is square
+        if C.shape[0] != C.shape[1]:
+            raise ValueError("Input C must be a square matrix")
+        if np.linalg.matrix_rank(C) < C.shape[0]:
+            # If singular, add small values to diagonal to make it invertible
+            epsilon = 1e-6
+            while np.linalg.matrix_rank(C) < C.shape[0]:
+                C = C + np.eye(C.shape[0]) * epsilon
+                epsilon *= 10
+                if epsilon > 1e-3:  # Set a maximum epsilon to prevent infinite loop
+                    raise ValueError("Matrix C is too close to singular and cannot be inverted")
+
+        S = np.linalg.inv(C)
+        
+        # Calculate Young's moduli
+        Ex = 1 / S[0, 0]
+        Ey = 1 / S[1, 1]
+        Ez = 1 / S[2, 2]
+
+        # Calculate Shear moduli
+        Gyz = C[3, 3]  # G23
+        Gzx = C[4, 4]  # G31
+        Gxy = C[5, 5]  # G12
+
+        # Calculate Poisson's ratios
+        nuxy = -S[1, 0] * Ex  # νxy = -S12/S11
+        nuyx = -S[0, 1] * Ey  # νyx = -S21/S22
+        nuyz = -S[2, 1] * Ey  # νyz = -S23/S22
+        nuzy = -S[1, 2] * Ez  # νzy = -S32/S33
+        nuzx = -S[0, 2] * Ez  # νzx = -S31/S33
+        nuxz = -S[2, 0] * Ex  # νxz = -S13/S11
+        
+        # # Bulk modulus (K)
+        # K_v = (C[0, 0] + C[1, 1] + C[2, 2] + 2*(C[0, 1] + C[1, 2] + C[2, 0])) / 9  # Voigt average
+        # K_r = 1 / (S[0, 0] + S[1, 1] + S[2, 2] + 2*(S[0, 1] + S[1, 2] + S[2, 0]))  # Reuss average
+        # K = (K_v + K_r) / 2  # Hill average
+        
+        return {
+            "young's modulus": {'Ex': Ex, 'Ey': Ey, 'Ez': Ez},
+            "shear modulus": {'Gyz': Gyz, 'Gzx': Gzx, 'Gxy': Gxy},
+            "poisson's ratio": {'nuxy': nuxy, 'nuyx': nuyx, 'nuyz': nuyz, 'nuzy': nuzy, 'nuzx': nuzx, 'nuxz': nuxz}
+        }
 
 
 
