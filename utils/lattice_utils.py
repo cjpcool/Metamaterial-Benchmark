@@ -4,6 +4,91 @@ import plotly.graph_objects as go
 import operator
 import functools
 from utils.voigt_rotation import get_rotation_matrix_np
+from scipy.spatial.distance import cdist
+import torch
+from scipy.spatial import ConvexHull
+
+
+def point_to_triangle_distance(p, tri_points):
+    """Calculate the distance from a point p to a triangle defined by tri_points."""
+    A, B, C = tri_points
+    AB = B - A
+    AC = C - A
+    AP = p - A
+
+    normal = np.cross(AB, AC)
+    norm_normal = np.linalg.norm(normal)
+
+    if norm_normal == 0:
+        return min(cdist([p], [A], 'euclidean')[0],
+                   cdist([p], [B], 'euclidean')[0],
+                   cdist([p], [C], 'euclidean')[0])
+
+    dist = abs(np.dot(AP, normal)) / norm_normal
+    return dist
+
+def classify_nodes_with_geometry(positions, edges):
+    # Ensure positions and edges are PyTorch tensors.
+    if not isinstance(positions, torch.Tensor):
+        positions = torch.tensor(positions, dtype=torch.float)
+    if not isinstance(edges, torch.Tensor):
+        edges = torch.tensor(edges, dtype=torch.long)
+
+    num_nodes = positions.shape[0]
+
+    # Define one-hot encoding for the labels.
+    label_encoding = {
+        'corner': torch.tensor([1., 0., 0., 0.], dtype=torch.float),
+        'edge': torch.tensor([0., 1., 0., 0.], dtype=torch.float),
+        'face': torch.tensor([0., 0., 1., 0.], dtype=torch.float),
+        'inner': torch.tensor([0., 0., 0., 1.], dtype=torch.float)
+    }
+
+    # Initialize all nodes as inner nodes.
+    node_labels = torch.full((num_nodes, 4), 0, dtype=torch.float)
+    node_labels[:, 3] = 1  # Set all nodes to inner initially.
+
+    # Compute the convex hull of the points using CPU since scipy does not support GPU.
+    hull = ConvexHull(positions.cpu().numpy())
+
+    # Get all unique surface nodes from simplices.
+    all_surface_node_indices = []
+    for i in range(num_nodes):
+        min_dist = float('inf')
+        for simplex in hull.simplices:
+            tri_points = positions[simplex].cpu().numpy()
+            dist = point_to_triangle_distance(positions[i].cpu().numpy(), tri_points)
+            if dist < min_dist:
+                min_dist = dist
+        if min_dist < 1e-4:
+            all_surface_node_indices.append(i)
+    # all_surface_node_indices = torch.unique(torch.cat([all_surface_node_indices, torch.from_numpy(hull.simplices.flatten())]))
+
+
+    # Classify surface nodes into corner, edge, and face nodes.
+    corner_nodes = set(hull.vertices)  # Convex hull vertices are corner nodes.
+    all_surface_node_indices = [i for i in all_surface_node_indices if i not in corner_nodes]
+    edge_nodes = set()
+    face_nodes = set()
+
+    for node in all_surface_node_indices:
+        surf_pos = positions[node]
+        corner_pos = positions[list(corner_nodes)]
+        if (((surf_pos - corner_pos).abs() < 1e-4).sum(-1) == 2).sum() >= 1:
+            edge_nodes.add(node)
+        else:
+            face_nodes.add(node)
+
+    # Assign labels based on classification.
+    for node in corner_nodes:
+        node_labels[node] = label_encoding['corner']
+    for node in edge_nodes:
+        node_labels[node] = label_encoding['edge']
+    for node in face_nodes:
+        node_labels[node] = label_encoding['face']
+
+    return node_labels
+
 
 
 def connect_points(coordinates, connectity, fig):

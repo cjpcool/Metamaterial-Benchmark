@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from datasets.lattice import Structure
-from utils.lattice_utils import Topology, scale_to_cell
+from utils.lattice_utils import Topology, scale_to_cell, classify_nodes_with_geometry
 import pickle
 
 from torch_geometric.data import Data
@@ -56,7 +56,11 @@ class LatticeModulus(LatticeTruss):
                 print('Error sample {}, skip it.'.format(i))
                 continue
             edge_num = S1.edge_index.shape[1]
-            node_feat = torch.zeros((S1.num_nodes, 1), dtype=torch.long)
+            try:
+                node_feat = classify_nodes_with_geometry(S1.frac_coords.to(torch.float32), S1.edge_index)
+            except:
+                print('Constructing node feature error, set to zeros')
+                node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
             edge_feat = torch.zeros((edge_num, 1), dtype=torch.float32)
             edge_num = S1.num_edges
 
@@ -133,7 +137,11 @@ class LatticeStiffness(LatticeTruss):
                            properties_names=self.C_names)
             # if S1.num_nodes != 15: continue
             edge_num = S1.num_edges
-            node_feat = torch.zeros((S1.num_nodes, 1), dtype=torch.long)
+            try:
+                node_feat = classify_nodes_with_geometry(S1.frac_coords.to(torch.float32),S1.edge_index)
+            except:
+                print('Constructing node feature error, set to zeros')
+                node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
             edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * S1.diameter
             lattice_vector = S1.lattice_vector.view(1, -1)
             data = Data(
@@ -154,6 +162,7 @@ class LatticeStiffness(LatticeTruss):
             # print(data.cart_coords)
             # input()
             data_list.append(data)
+
         print('End preprocessing data.')
         print('Saving data...')
         print('Sample amount: ' + str(len(data_list)))
