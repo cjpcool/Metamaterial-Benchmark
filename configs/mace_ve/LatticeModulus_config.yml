@@ -1,0 +1,32 @@
+data_path: 'D:\项目\Material design\code_data\data\LatticeModulus'
+data_random_seed: 42
+
+
+
+network:
+  lmax: 4
+  hidden_irreps: '32x0e+32x1o+32x2e+32x3o+32x4e'
+  readout_irreps: '16x0e+16x1o+16x2e+16x3o+16x4e'
+  num_edge_bases: 6
+  interaction_reduction: sum
+  interaction_bias: true
+  agg_norm_const: 4.0
+  inter_MLP_dim: 64
+  inter_MLP_layers: 3
+  correlation: 3
+  global_reduction: mean
+  message_passes: 2
+  positive_function: matrix_power_2
+
+training:
+  rotate: false
+  batch_size: 64
+  valid_batch_size: 64
+  log_every_n_steps: 25
+  optimizer: adamw
+  lr: 0.001
+  amsgrad: true
+  weight_decay: 1e-8
+  beta1: 0.9
+  epsilon: 1e-8
+  num_workers: 4
