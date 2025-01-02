@@ -1,6 +1,8 @@
+data_name: 'LatticeModulus'
 data_path: 'D:\项目\Material design\code_data\data\LatticeModulus'
-data_random_seed: 42
-
+data_seed: 42
+train_size: 8000
+valid_size: 2000
 
 
 network:
@@ -18,15 +20,25 @@ network:
   message_passes: 2
   positive_function: matrix_power_2
 
+  output_dim: 12
+  node_ft_dim: 4
+
 training:
   rotate: false
-  batch_size: 64
-  valid_batch_size: 64
+  batch_size: 4
+  valid_batch_size: 4
   log_every_n_steps: 25
   optimizer: adamw
   lr: 0.001
   amsgrad: true
-  weight_decay: 1e-8
+  weight_decay: 1.0e-8
   beta1: 0.9
-  epsilon: 1e-8
-  num_workers: 4
+  epsilon: 1.0e-8
+  num_workers: 0
+
+  use_cuda: true
+  log_dir: './logs/mace_ve/'
+  accumulate_grad_batches: 1  # effective batch size 256
+  gradient_clip_val: 10.0
+  max_steps: 50000
+  val_check_interval: 100
