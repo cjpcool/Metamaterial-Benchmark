@@ -61,7 +61,7 @@ class LatticeModulus(LatticeTruss):
             except:
                 print('Constructing node feature error, set to zeros')
                 node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
-            edge_feat = torch.zeros((edge_num, 1), dtype=torch.float32)
+            edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * 0.1
             edge_num = S1.num_edges
 
             data = Data(
