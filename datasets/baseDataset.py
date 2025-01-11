@@ -2,7 +2,6 @@ import torch
 import os
 from typing import List, Callable
 
-from bokeh.core.has_props import abstract
 from sklearn.utils import shuffle
 from torch_geometric.data import (
     InMemoryDataset,

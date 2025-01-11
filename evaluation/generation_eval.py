@@ -272,7 +272,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             degree_dict[end_node] += 1
 
         for degree in degree_dict.values():
-            if degree == 1:
+            if degree <= 1:
                 return True
 
         return False

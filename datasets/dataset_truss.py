@@ -144,10 +144,12 @@ class LatticeStiffness(LatticeTruss):
                 node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
             edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * S1.diameter
             lattice_vector = S1.lattice_vector.view(1, -1)
+            y = S1.properties.to(torch.float32).view(1, -1)
             data = Data(
                 frac_coords=S1.frac_coords.to(torch.float32),
                 cart_coords=S1.cart_coords.to(torch.float32),
                 node_feat=node_feat,
+                node_type=torch.argmax(node_feat,dim=1)+1,
                 edge_feat=edge_feat,
                 edge_index=S1.edge_index,
                 num_nodes=S1.num_nodes,
@@ -156,7 +158,10 @@ class LatticeStiffness(LatticeTruss):
                 lengths=S1.lattice_params[0].view(1, -1).to(torch.float32),
                 angles=S1.lattice_params[1].view(1, -1).to(torch.float32),
                 vector=lattice_vector.to(torch.float32),
-                y=S1.properties.to(torch.float32).view(1, -1),
+                y=y,
+                young=y[:,:3],
+                shear=y[:, 3:6],
+                poisson=y[:, 6:],
                 to_jimages=S1.to_jimages
             )
             # print(data.cart_coords)
@@ -174,7 +179,7 @@ def main():
     from torch_geometric.loader import DataLoader
     from utils.lattice_utils import plot_lattice
 
-    dataset = LatticeModulus('D:\项目\Material design\code_data\data\LatticeModulus')
+    dataset = LatticeModulus('D:\项目\Material design\code_data\data\LatticeStiffness')
 
     split_idx = dataset.get_idx_split(len(dataset), train_size=5, valid_size=5, seed=42)
     print(split_idx.keys())
