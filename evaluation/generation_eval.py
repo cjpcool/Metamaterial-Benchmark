@@ -252,9 +252,10 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         print(f"Mean Central Symmetry rate: {mean_symmetry}")
         connectivity_ratio = np.array(connectivity).sum() / len(connectivity)
         print(f"Connectivity rate: {connectivity_ratio}")
-        dangling_node_ratio = np.array(dangling_node).sum() / len(dangling_node)
-        print(f'Dangling rate: {dangling_node_ratio}')
+        dangling_node_ratio = 1- np.array(dangling_node).sum() / len(dangling_node)
+        print(f'Dangling restriction rate: {dangling_node_ratio}')
 
+        # print(f'Overall validity: ')
         return periodicity_ratio, mean_symmetry, connectivity_ratio, dangling_node_ratio
 
 
