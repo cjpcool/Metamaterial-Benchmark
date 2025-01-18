@@ -310,7 +310,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         # res = kmeans.fit_predict(x)
         # nmi = nmi_score(labels, res, average_method='arithmetic')
 
-        distance,_ = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).min(axis=1)
+        distance,_ = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).mean(axis=1)
 
         return distance.item()
 
