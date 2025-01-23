@@ -67,8 +67,8 @@ class MaceVeModel(BaseModel):
         pred_all = torch.cat(pred_all, dim=0).cpu().numpy()
         targe_all = torch.cat(targe_all, dim=0).cpu().numpy()
         r2, nrmse, mae = calculate_metrics(pred_all, targe_all)
-        if self.config['wandb_args']['use_wandb']:
-            wandb.log({"Eval/R2": r2.item(), 'NRMSE': nrmse.item(), 'MAE': mae.item()})
+        if self.config['wandb_args']['use_wandb'] and wandb.run:
+            wandb.log({"Eval/R2": r2, 'NRMSE': nrmse, 'MAE': mae})
 
         print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}')
         return r2, nrmse, mae
@@ -116,7 +116,7 @@ class MaceVeModel(BaseModel):
         pred_all = torch.cat(pred_all, dim=0).cpu().numpy()
         targe_all = torch.cat(targe_all, dim=0).cpu().numpy()
         r2, nrmse, mae = calculate_metrics(pred_all, targe_all)
-        if self.config['wandb_args']['use_wandb']:
+        if self.config['wandb_args']['use_wandb'] and wandb.run:
             wandb.log({"Eval_train/R2": r2.item(), 'NRMSE': nrmse.item(), 'MAE': mae.item()})
         print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}')
         return r2, nrmse, mae
@@ -165,8 +165,8 @@ class MaceVeModel(BaseModel):
         pred_all = torch.cat(pred_all, dim=0).cpu().numpy()
         targe_all = torch.cat(targe_all, dim=0).cpu().numpy()
         r2, nrmse, mae = calculate_metrics(pred_all, targe_all)
-        if self.config['wandb_args']['use_wandb']:
-            wandb.log({"Test/R2": r2.item(), 'NRMSE': nrmse.item(), 'MAE': mae.item()})
+        if self.config['wandb_args']['use_wandb'] and wandb.run:
+            wandb.log({"Test/R2": r2, 'NRMSE': nrmse, 'MAE': mae})
         print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}')
         return r2, nrmse, mae
 
@@ -371,25 +371,29 @@ class MaceVeModel(BaseModel):
         return avg_val_loss
 
 
-
 class CheckpointManager:
-    def __init__(self, model, save_dir, filename='{epoch}-{step}-{val_loss:.3f}', monitor='val_loss', save_top_k=1):
+    def __init__(self, model, save_dir, filename='{epoch}-{step}-{val_loss:.3f}.pth', monitor='val_loss', save_top_k=5):
         self.model = model
         self.save_dir = Path(save_dir)
         self.filename = filename
         self.monitor = monitor
         self.save_top_k = save_top_k
         self.best_scores = []
+        self.checkpoints = []
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
     def step(self, metrics, epoch, step, optimizer):
         score = metrics[self.monitor]
+
+        # Check if we should save the checkpoint
         if len(self.best_scores) < self.save_top_k or score < max(self.best_scores):
+            # Add the new score and sort the best scores
             self.best_scores.append(score)
             self.best_scores.sort()
             if len(self.best_scores) > self.save_top_k:
                 self.best_scores.pop()
 
+            # Save the new checkpoint
             checkpoint_path = self.save_dir / self.filename.format(epoch=epoch, step=step, val_loss=score)
             torch.save({
                 'epoch': epoch,
@@ -398,6 +402,35 @@ class CheckpointManager:
                 'loss': score,
             }, checkpoint_path)
             print(f"Saved checkpoint: {checkpoint_path}")
+
+            # Add the new checkpoint to the list
+            self.checkpoints.append((checkpoint_path, score))
+
+            # Save the best model separately
+            self._save_best_model()
+
+            # Remove checkpoints not in the top-k
+            self._cleanup_checkpoints()
+
+    def _cleanup_checkpoints(self):
+        # Keep only the top-k checkpoints
+        self.checkpoints.sort(key=lambda x: x[1])  # Sort by score (ascending)
+        while len(self.checkpoints) > self.save_top_k:
+            checkpoint_to_remove, _ = self.checkpoints.pop()  # Remove the worst checkpoint
+            if checkpoint_to_remove.exists():
+                os.remove(checkpoint_to_remove)
+                print(f"Removed checkpoint: {checkpoint_to_remove}")
+
+    def _save_best_model(self):
+        if self.best_scores:
+            best_score = self.best_scores[0]
+            for checkpoint_path, score in self.checkpoints:
+                if score == best_score:
+                    best_model_path = self.save_dir / 'best_model.pth'
+                    torch.save(torch.load(checkpoint_path), best_model_path)
+                    print(f"Saved best model: {best_model_path}")
+                    break
+
 
 
 class EarlyStopper:

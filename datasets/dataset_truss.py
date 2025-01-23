@@ -179,8 +179,53 @@ def main():
     from torch_geometric.loader import DataLoader
     from utils.lattice_utils import plot_lattice
 
-    dataset = LatticeModulus('D:\项目\Material design\code_data\data\LatticeStiffness')
+    dataset = LatticeModulus('/home/jianpengc/datasets/metamaterial/LatticeModulus_uni_density')
+    data_list = []
 
+    for i in tqdm(range(len(dataset))):
+        # for i in tqdm(range(100)):
+        S1 =  dataset[i]
+        edge_num = S1.num_edges
+        try:
+            node_feat = classify_nodes_with_geometry(S1.frac_coords, S1.edge_index)
+        except:
+            print('Constructing node feature error, set to zeros')
+            node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
+        # node_feat = S1.node_feat
+        edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * 1.
+        y = S1.y
+        data = Data(
+            frac_coords=dataset.frac_coords,
+            cart_coords=dataset.cart_coords,
+            node_feat=node_feat,
+            node_type=torch.argmax(node_feat, dim=1) + 1,
+            edge_feat=edge_feat,
+            edge_index=S1.edge_index,
+            num_nodes=S1.num_nodes,
+            num_atoms=S1.num_nodes,
+            num_edges=edge_num,
+            lengths=S1.lengths,
+            angles=S1.angles,
+            vector=S1.vector,
+            density = S1.density,
+            y=S1.density.unsqueeze(0),
+            # young=S1.young,
+            # shear=S1.shear,
+            # poisson=S1.poisson,
+            to_jimages=S1.to_jimages
+        )
+        # print(data.cart_coords)
+        # input()
+        data_list.append(data)
+
+    print('End preprocessing data.')
+    print('Saving data...')
+    print('Sample amount: ' + str(len(data_list)))
+    torch.save(dataset.collate(data_list), '/home/jianpengc/datasets/metamaterial/LatticeModulus_uni_density/data/data.pt')
+    print('Completed preprocessing data.')
+
+
+'''
     split_idx = dataset.get_idx_split(len(dataset), train_size=5, valid_size=5, seed=42)
     print(split_idx.keys())
     print(dataset[split_idx['train']])
@@ -204,7 +249,7 @@ def main():
     print(data.edge_index.dtype)
     print(data.y)
     print(data.cart_coords.dtype)
-
+'''
 
 if __name__ == '__main__':
     main()
