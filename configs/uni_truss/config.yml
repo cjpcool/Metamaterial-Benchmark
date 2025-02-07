@@ -1,0 +1,43 @@
+data_name: 'LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus_uni' #'D:\项目\Material design\code_data\data\LatticeModulus'  #ini '/home/jianpengc/datasets/metamaterial/LatticeModulus'
+data_seed: 42
+train_size: 10000 # 0.7 11696.3 #ini 8000
+valid_size: 2000
+pred_property: 'all'
+paths:
+  output_folder: "../results"
+  saved_model_folder: "../results"
+  load_pretrained_model: False
+
+model:
+  numNodes: 27
+  dim: 3
+  ax_dim: 32
+  a_dim: 8
+  x_dim: 8
+  latent_dim: &latent_dim 48 # # ax_dim + x_dim + a_dim
+  z_dim: *latent_dim
+
+  c_hidden_dim: [ *latent_dim, 400, 800, 1000, 400, 400, 200 ]
+  inv_hidden_dim: [500, 500, 600, 500, 300, 200]
+  target: "stiffness"
+  paramDim: 9
+  add_noise: False
+
+training:
+  epochs: 200
+  batch_size: 512
+  test_batch_size: 512
+  dropout: 0.0
+  kl_update: "annealing"
+  valid_size: 0.03
+  recon_loss_func: "l2"
+
+optimizer:
+  learning_rate: 0.0005
+  c_lr: 0.001
+  inv_lr: 0.0001
+
+loss_weights:
+  x_weight: 1.0
+  c_weight: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
