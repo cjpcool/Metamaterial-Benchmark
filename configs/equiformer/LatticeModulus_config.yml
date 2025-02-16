@@ -1,0 +1,88 @@
+# General Data Config
+data_name: 'LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus'  # 'D:\项目\Material design\code_data\data\LatticeModulus'
+data_seed: 42
+train_size: 8000
+valid_size: 2000
+pred_property: 'all' # young, shear, poisson, all
+
+
+
+wandb_args:
+  use_wandb: false
+  entity: "jianpengc"
+  project: "metabench"
+  save_name: 'equiformer-props'
+
+# Model Config
+model:
+  model_name: 'graph_attention_transformer_nonlinear_l2'
+  input_irreps: '5x0e'
+  radius: 5.0
+  num_basis: 128
+  output_channels: 12
+  drop_path: 0.0
+
+
+
+# Training Config
+training:
+  patience: 50
+  epochs: 3
+  valid_freq: 10
+  batch_size: 100
+  valid_batch_size: 100
+  model_ema: false
+  model_ema_decay: 0.9999
+  model_ema_force_cpu: false
+  weight_decay: 0.
+  opt: 'adamw'
+  opt_eps: 1.e-8
+  opt_betas: null
+  clip_grad: null
+  momentum: 0.9
+  sched: 'cosine'
+  lr: 5.e-4
+  lr_noise: null
+  lr_noise_pct: 0.67
+  lr_noise_std: 1.0
+  warmup_lr: 1.e-6
+  min_lr: 1.e-7
+  decay_epochs: 30
+  warmup_epochs: 5
+  cooldown_epochs: 10
+  patience_epochs: 10
+  decay_rate: 0.1
+
+# Logging Config
+logging:
+  print_freq: 100
+
+# Task Config
+task:
+  feature_type: 'one_hot'
+  compute_stats: false
+  standardize: true
+  loss: 'l2'
+
+# Random Seed Config
+random:
+  seed: 42
+
+# DataLoader Config
+dataloader:
+  workers: 4
+  pin_mem: true
+
+# AMP Config
+amp:
+  enabled: false
+
+# Distributed Training Config
+distributed:
+  world_size: 1
+  dist_url: 'env://'
+
+# Output and Misc
+output_dir: './checkpoints/equiformer/uni_dens'
+log_dir: './logs/equiformer/uni_dens'

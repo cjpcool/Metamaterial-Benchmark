@@ -2,10 +2,8 @@ from argparse import Namespace
 import datetime
 
 import wandb
-from scipy.stats.tests.test_continuous_fit_censored import optimizer
 from tqdm import tqdm
 
-from models.mace_ve.lattices.utils import elasticity_func
 from wrappers.BaseModel import BaseModel
 import torch
 from models.mace_ve import EnergyEquivGNN
@@ -140,9 +138,11 @@ class MaceVeModel(BaseModel):
 
         pred_all = []
         targe_all = []
+        mean_time= 0
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 batch = batch.to(device)
+                start_time = time.time()
                 # directions = torch.randn(250, 3, dtype=torch.float32, device=device)
                 # directions = directions / directions.norm(dim=-1, keepdim=True)
 
@@ -150,6 +150,8 @@ class MaceVeModel(BaseModel):
                 num_graphs = batch.batch.max().item() + 1
                 output = self.model(batch.cart_coords, batch.edge_index, shifts, batch.edge_feat, batch.node_feat,
                                     num_graphs, batch.batch)
+                end_time = time.time()
+                mean_time += (end_time - start_time)
                 if params.pred_property == 'young':
                     true_y = batch.y[:,:3]
                 elif params.pred_property == 'shear':
@@ -167,13 +169,22 @@ class MaceVeModel(BaseModel):
         r2, nrmse, mae = calculate_metrics(pred_all, targe_all)
         if self.config['wandb_args']['use_wandb'] and wandb.run:
             wandb.log({"Test/R2": r2, 'NRMSE': nrmse, 'MAE': mae})
-        print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}')
+        print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}, mean_time:{mean_time / len(test_loader)}')
         return r2, nrmse, mae
 
 
     def load_model(self, checkpoint_path=None):
         max_edge_radius = self.train_data.edge_feat.max()
         self.config['network']['max_edge_radius'] = max_edge_radius
+        output_dim_map = {
+            "all": self.config['network']['output_dim'],
+            "young": 3,
+            "shear": 3,
+            "poisson": 6,
+            'density': 1,
+        }
+        self.config['network']['output_dim'] = output_dim_map[self.config['training']['pred_property']]
+
         self.model = EnergyEquivGNN(params=Namespace(**self.config['network']))
         if checkpoint_path is not None:
             print('Load checkpoint from', checkpoint_path)
@@ -236,14 +247,15 @@ class MaceVeModel(BaseModel):
             wandb.init(
                 entity=self.config['wandb_args']['entity'],
                 project=self.config['wandb_args']['project'],
-                name=self.config['wandb_args']['save_name']+'-'+datetime.datetime.now().strftime('%Y-%m-%d--%H:%M')
+                name=self.config['wandb_args']['save_name']+'-'+datetime.datetime.now().strftime('%Y-%m-%d--%H:%M'),
+                reinit=True
             )
             writer=None
         else:
             use_wandb=False
             writer = SummaryWriter(log_dir=params.log_dir)  # TensorBoard logger
         checkpoint_manager = CheckpointManager(model=self.model, save_dir=params.save_dir)  # Assuming the second callback is CheckpointManager
-        early_stopper = EarlyStopper(patience=50, mode='min')  # Assuming the third callback is EarlyStopper
+        early_stopper = EarlyStopper(patience=self.config['training']['patience'], mode='min')  # Assuming the third callback is EarlyStopper
 
         global_step = 0
         self.model.train()
@@ -372,7 +384,7 @@ class MaceVeModel(BaseModel):
 
 
 class CheckpointManager:
-    def __init__(self, model, save_dir, filename='{epoch}-{step}-{val_loss:.3f}.pth', monitor='val_loss', save_top_k=5):
+    def __init__(self, model, save_dir, filename='{epoch}-{step}-{val_loss:.5f}.pth', monitor='val_loss', save_top_k=5):
         self.model = model
         self.save_dir = Path(save_dir)
         self.filename = filename

@@ -1,3 +1,4 @@
+import networkx as nx
 import torch
 import pandas as pd
 from tqdm import tqdm
@@ -8,7 +9,36 @@ import pickle
 
 from torch_geometric.data import Data
 from datasets.baseDataset import LatticeTruss
+import numpy as np
 
+def is_connected(edges):
+    if edges is None or (edges == np.array(None)).any():
+        return False
+    if edges.shape[0] == 2:
+        edges = edges.T
+    G = nx.Graph()
+    G.add_edges_from(edges)
+    return nx.is_connected(G)
+
+def has_dangling_node(coords, edge_index):
+    if edge_index is None or (edge_index == np.array(None)).any():
+        return True
+    if edge_index.shape[0] != 2:
+        edge_index = edge_index.T
+
+    i, j = edge_index
+
+    degree_dict = {atom_idx: 0 for atom_idx in range(len(coords))}
+
+    for start_node, end_node in zip(i, j):
+        degree_dict[start_node] += 1
+        degree_dict[end_node] += 1
+
+    for degree in degree_dict.values():
+        if degree < 1:
+            return True
+
+    return False
 
 class LatticeModulus(LatticeTruss):
     raw_data_keys = ['Name', 'Other name(s)', 'lengths', 'angles', 'Z_avg', 'Young', 'Shear', 'Poisson',
@@ -52,22 +82,37 @@ class LatticeModulus(LatticeTruss):
                 if torch.any(dist_mat < 1e-5):
                     print('Error sample {}, close distance. skip it.'.format(i))
                     continue
+
+                if S1.num_nodes > 500:
+                    print('Error sample {}, too many nodes {}.'.format(i, S1.num_nodes))
+                    continue
             except KeyError:
                 print('Error sample {}, skip it.'.format(i))
                 continue
             edge_num = S1.edge_index.shape[1]
+
+            if not is_connected(S1.edge_index.numpy()):
+                print('Error sample {} not connected, skip it.'.format(i))
+                continue
+            # if has_dangling_node(S1.cart_coords.to(torch.float32).numpy(), S1.edge_index.numpy()):
+            #     print('Error sample {} has_dangling_node, skip it.'.format(i))
+            #     continue
+
             try:
                 node_feat = classify_nodes_with_geometry(S1.frac_coords.to(torch.float32), S1.edge_index)
+                # node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
             except:
                 print('Constructing node feature error, set to zeros')
                 node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
+
             edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * 0.1
             edge_num = S1.num_edges
-
+            y = S1.properties.to(torch.float32).view(1, -1)
             data = Data(
                 frac_coords=S1.frac_coords.to(torch.float32),
                 cart_coords=S1.cart_coords.to(torch.float32),
                 node_feat=node_feat,
+                node_type=torch.argmax(node_feat, dim=1) + 1,
                 edge_feat=edge_feat,
                 edge_index=S1.edge_index,
                 num_nodes=S1.num_nodes,
@@ -76,9 +121,13 @@ class LatticeModulus(LatticeTruss):
                 lengths=S1.lattice_params[0].view(1, -1).to(torch.float32),
                 angles=S1.lattice_params[1].view(1, -1).to(torch.float32),
                 vector=S1.lattice_vector.view(1, -1).to(torch.float32),
-                y=S1.properties.to(torch.float32).view(1, -1),
+                y=y,
+                young=y[:, :3],
+                shear=y[:, 3:6],
+                poisson=y[:, 6:],
                 to_jimages=S1.to_jimages
             )
+
 
             data_list.append(data)
         print('End preprocessing data.')
@@ -137,6 +186,14 @@ class LatticeStiffness(LatticeTruss):
                            properties_names=self.C_names)
             # if S1.num_nodes != 15: continue
             edge_num = S1.num_edges
+
+            if not is_connected(S1.edge_index.numpy()):
+                print('Error sample {} not connected, skip it.'.format(i))
+                continue
+            if has_dangling_node(S1.cart_coords.to(torch.float32).numpy(), S1.edge_index.numpy()):
+                print('Error sample {} has_dangling_node, skip it.'.format(i))
+                continue
+
             try:
                 node_feat = classify_nodes_with_geometry(S1.frac_coords.to(torch.float32),S1.edge_index)
             except:
@@ -179,53 +236,54 @@ def main():
     from torch_geometric.loader import DataLoader
     from utils.lattice_utils import plot_lattice
 
-    dataset = LatticeModulus('/home/jianpengc/datasets/metamaterial/LatticeModulus_uni_density')
-    data_list = []
+    # dataset = LatticeModulus('/home/jianpengc/datasets/metamaterial/LatticeModulus',file_name='data_all')
+    dataset = LatticeModulus('D:\\项目\\Material design\\code_data\\data\\LatticeModulus',file_name='data_new')
+    # data_list = []
+    # for i in tqdm(range(len(dataset))):
+    #     # for i in tqdm(range(100)):
+    #     S1 =  dataset[i]
+    #     edge_num = S1.num_edges
+    #     try:
+    #         node_feat = classify_nodes_with_geometry(S1.frac_coords, S1.edge_index)
+    #     except:
+    #         print('Constructing node feature error, set to zeros')
+    #         node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
+    #     # node_feat = S1.node_feat
+    #     edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * 1.
+    #     y = S1.y
+    #     data = Data(
+    #         frac_coords=S1.frac_coords,
+    #         cart_coords=S1.cart_coords,
+    #         node_feat=node_feat,
+    #         node_type=torch.argmax(node_feat, dim=1) + 1,
+    #         edge_feat=edge_feat,
+    #         edge_index=S1.edge_index,
+    #         num_nodes=S1.num_nodes,
+    #         num_atoms=S1.num_nodes,
+    #         num_edges=edge_num,
+    #         lengths=S1.lengths,
+    #         angles=S1.angles,
+    #         vector=S1.vector,
+    #         density = S1.density,
+    #         # y=S1.density.unsqueeze(0),
+    #         y=y,
+    #         young=y[:, :3],
+    #         shear=y[:, 3:6],
+    #         poisson=y[:, 6:],
+    #         to_jimages=S1.to_jimages
+    #     )
+    #     # print(data.cart_coords)
+    #     # input()
+    #     data_list.append(data)
+    #
+    # print('End preprocessing data.')
+    # print('Saving data...')
+    # print('Sample amount: ' + str(len(data_list)))
+    # torch.save(dataset.collate(data_list), '/home/jianpengc/datasets/metamaterial/LatticeModulus_uni/data/processed/data.pt')
+    # print('Completed preprocessing data.')
 
-    for i in tqdm(range(len(dataset))):
-        # for i in tqdm(range(100)):
-        S1 =  dataset[i]
-        edge_num = S1.num_edges
-        try:
-            node_feat = classify_nodes_with_geometry(S1.frac_coords, S1.edge_index)
-        except:
-            print('Constructing node feature error, set to zeros')
-            node_feat = torch.zeros((S1.num_nodes, 4), dtype=torch.float32)
-        # node_feat = S1.node_feat
-        edge_feat = torch.ones((edge_num, 1), dtype=torch.float32) * 1.
-        y = S1.y
-        data = Data(
-            frac_coords=dataset.frac_coords,
-            cart_coords=dataset.cart_coords,
-            node_feat=node_feat,
-            node_type=torch.argmax(node_feat, dim=1) + 1,
-            edge_feat=edge_feat,
-            edge_index=S1.edge_index,
-            num_nodes=S1.num_nodes,
-            num_atoms=S1.num_nodes,
-            num_edges=edge_num,
-            lengths=S1.lengths,
-            angles=S1.angles,
-            vector=S1.vector,
-            density = S1.density,
-            y=S1.density.unsqueeze(0),
-            # young=S1.young,
-            # shear=S1.shear,
-            # poisson=S1.poisson,
-            to_jimages=S1.to_jimages
-        )
-        # print(data.cart_coords)
-        # input()
-        data_list.append(data)
-
-    print('End preprocessing data.')
-    print('Saving data...')
-    print('Sample amount: ' + str(len(data_list)))
-    torch.save(dataset.collate(data_list), '/home/jianpengc/datasets/metamaterial/LatticeModulus_uni_density/data/data.pt')
-    print('Completed preprocessing data.')
 
 
-'''
     split_idx = dataset.get_idx_split(len(dataset), train_size=5, valid_size=5, seed=42)
     print(split_idx.keys())
     print(dataset[split_idx['train']])
@@ -246,10 +304,11 @@ def main():
     print('min edge num', min(edge_num_per_lattice))
 
     data = dataset[0]
+    print(data)
     print(data.edge_index.dtype)
     print(data.y)
     print(data.cart_coords.dtype)
-'''
+
 
 if __name__ == '__main__':
     main()

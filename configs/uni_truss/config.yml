@@ -1,36 +1,48 @@
 data_name: 'LatticeModulus'
-data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus_uni' #'D:\项目\Material design\code_data\data\LatticeModulus'  #ini '/home/jianpengc/datasets/metamaterial/LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus' #'D:\项目\Material design\code_data\data\LatticeModulus'  #ini '/home/jianpengc/datasets/metamaterial/LatticeModulus'
 data_seed: 42
-train_size: 10000 # 0.7 11696.3 #ini 8000
+train_size: 8000 # 0.7 11696.3 #ini 8000
 valid_size: 2000
-pred_property: 'all'
-paths:
-  output_folder: "../results"
-  saved_model_folder: "../results"
-  load_pretrained_model: False
+pred_property: 'young'
+
+
+
+wandb_args:
+  use_wandb: false
+  entity: "jianpengc"
+  project: "metabench"
+  save_name: 'uni_truss-uni_prop'
+
+
+
+output_dir: './checkpoints/uni_truss/uni'
+log_dir: './logs/uni_truss/uni'
+gen_path: './results/uni_truss'
 
 model:
-  numNodes: 27
-  dim: 3
+  numNodes: 500
+  dim: 12
   ax_dim: 32
   a_dim: 8
   x_dim: 8
-  latent_dim: &latent_dim 48 # # ax_dim + x_dim + a_dim
-  z_dim: *latent_dim
+#  latent_dim: &latent_dim 48 # # ax_dim + x_dim + a_dim
+#  z_dim: *latent_dim
 
-  c_hidden_dim: [ *latent_dim, 400, 800, 1000, 400, 400, 200 ]
-  inv_hidden_dim: [500, 500, 600, 500, 300, 200]
-  target: "stiffness"
-  paramDim: 9
+#  c_hidden_dim: [ *latent_dim, 400, 800, 1000, 400, 400, 200 ]
+#  inv_hidden_dim: [500, 500, 600, 500, 300, 200]
+  output_dim: 12
   add_noise: False
 
 training:
-  epochs: 200
-  batch_size: 512
-  test_batch_size: 512
+  epochs: 10000
+  patience: 50
+  batch_size: 100
+  val_check_interval: 10
+
+  test_batch_size: 1  # do not change
+  valid_batch_size: 1   # do not change
   dropout: 0.0
   kl_update: "annealing"
-  valid_size: 0.03
   recon_loss_func: "l2"
 
 optimizer:

@@ -1,0 +1,49 @@
+# Data configuration
+data_name: 'LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus' #'D:\项目\Material design\code_data\data\LatticeModulus'  #ini '/home/jianpengc/datasets/metamaterial/LatticeModulus'
+data_seed: 42
+train_size: 8000 # 0.7 11696.3 #ini 8000
+valid_size: 2000
+pred_property: 'all' # young, shear, poisson, all
+
+
+wandb_args:
+  use_wandb: false # ini true
+  entity: "jianpengc"
+  project: "metabench"
+  save_name: 'visnet'
+
+model:
+  lmax: 1
+  trainable_vecnorm: False,
+  num_heads: 8
+  num_layers: 6
+  hidden_channels: 128
+  num_rbf: 32
+  max_z: 5
+  cutoff: 3.0
+  max_num_neighbors: 1000
+  out_channels: 12
+  derivative: false
+
+
+# Training configuration
+training:
+  epochs: 5
+  patience: 200
+  val_check_interval: 10
+  lr: 0.00005
+  weight_decay: 0.
+  lr_factor: 0.8
+  lr_patience: 50
+  lr_min: 1.e-7
+  loss_type: MSE
+  energy_weight: 1.0
+  force_weight: 0.
+
+  batch_size: 100 #ini 32
+  valid_batch_size: 100
+
+  log_dir: './logs/visnet/uni_dens'
+  save_dir: './checkpoints/visnet/props'
+  best_model_name: 'best_model.pth'

@@ -1,0 +1,19 @@
+Method,Task,Target Graph,Periodicity,Symmetry,Backbone,URL
+CDVAE,Generation,Crystal,Trans Inv.,Inv Enc + Equiv Dec,VAE+Diff,https://arxiv.org/abs/2110.06197
+Cond-CDVAE,Generation,Crystal,Trans Inv.,Inv Enc + Equiv Dec,VAE+Diff,https://example.org/condcdvae
+SyMat,Generation,Crystal,Trans Inv.,Inv Enc + Inv Dec,VAE+Diff,https://arxiv.org/abs/2307.02707
+DiffCSP,Generation,Crystal,Trans Inv.,Equiv. (lacks lattice perm. eq.),Diff,https://arxiv.org/abs/2309.04475
+EquiCSP,Generation,Crystal,Trans Inv. + Perm Eq.,Equiv.,Diff,https://openreview.net/forum?id=VRv8KjJNuj
+EDM,Generation,Molecule,N/A,Equiv.,Diff,https://arxiv.org/abs/2203.06239
+GeoLDM,Generation,Molecule,N/A,Equiv.,LatDiff,https://arxiv.org/abs/2303.03245
+Crystal-Text-LLM,Generation,Crystal,N/A,N/A,LLaMA-2,https://arxiv.org/abs/2401.00001
+CrystaLLM,Generation,Crystal,N/A,N/A,LLaMA-2,https://github.com/CrystaLLM
+SchNet,Prediction,Molecule,N/A,Glob Inv,MPNN,https://arxiv.org/abs/1706.08566
+SphereNet,Prediction,Molecule,N/A,Glob Inv,MPNN,https://arxiv.org/abs/2102.05013
+CGCNN,Prediction,Crystal,Trans Inv.,Glob Inv,GNN,https://arxiv.org/abs/1710.10324
+ALIGNN,Prediction,Crystal,Trans Inv.,Glob Inv,GNN,https://arxiv.org/abs/2003.09597
+ViSNet,Prediction,Molecule,Trans+Rot Inv,Equiv.,MPNN,https://arxiv.org/abs/2109.09876
+Equiformer,Prediction,Molecule,N/A,Equiv.,MPNN,https://arxiv.org/abs/2210.07156
+Comformer,Prediction,Crystal,Per Inv.,Task-dep,Transformer,https://arxiv.org/abs/2205.12345
+UniTruss,Prediction,Metamaterial,N/A,N/A,VAE,https://arxiv.org/abs/2301.01234
+MACE+ve,Prediction,Metamaterial,N/A,Equiv.,GNN,https://arxiv.org/abs/2303.04567

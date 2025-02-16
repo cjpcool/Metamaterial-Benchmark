@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib.cm import ScalarMappable
 from torch_cluster import radius, radius_graph
 
 from utils.lattice_utils import plot_lattice
@@ -68,9 +69,9 @@ def visualizeLattice(nodes, struts, save_dir=None, dpi=150):
     """
 
     # Initialize containers for nodes and struts
-
+    struts = struts.T
     # Plot the lattice structure
-    fig = plt.figure(dpi=dpi)
+    fig = plt.figure(dpi=dpi, figsize=(6,6))
     ax = fig.add_subplot(111, projection='3d')
     ax.set_box_aspect([1, 1, 1])  # Equal aspect ratio
     ax.set_xlabel('X')
@@ -79,7 +80,7 @@ def visualizeLattice(nodes, struts, save_dir=None, dpi=150):
 
     # Set the title using the file name
 
-    ax.set_title(save_dir)
+    # ax.set_title()
 
     # Customize background color
     ax.set_facecolor((1, 1, 1))  # Light gray background
@@ -103,7 +104,8 @@ def visualizeLattice(nodes, struts, save_dir=None, dpi=150):
     # ax.grid(False)
     if save_dir is not None:
         plt.savefig(save_dir)
-    plt.show()
+    else:
+        plt.show()
 
 
 def visualizeLattice_interactive(nodes, edges, file_name=None):
@@ -114,17 +116,18 @@ def visualizeLattice_interactive(nodes, edges, file_name=None):
     """
 
     # Initialize containers for nodes and struts
-    edges = edges
+    edges = edges.T
 
     # We must "pad" the edges to indicate to vtk how many points per edge
     padding = np.empty(edges.shape[0], int) * 2
     padding[:] = 2
     edges_w_padding = np.vstack((padding, edges.T)).T
 
-    if file_name is None:
-        mesh = pyvista.PolyData(nodes, edges_w_padding)
+    mesh = pyvista.PolyData(nodes, edges_w_padding)
+    colors = range(edges.shape[0])
 
-        colors = range(edges.shape[0])
+    if file_name is None:
+        # 直接交互式显示
         mesh.plot(
             scalars=colors,
             render_lines_as_tubes=True,
@@ -136,34 +139,85 @@ def visualizeLattice_interactive(nodes, edges, file_name=None):
             color='lightblue',
         )
     else:
-        mesh = pyvista.PolyData(nodes, edges_w_padding)
-
+        # 使用离屏绘图模式
         plotter = pyvista.Plotter(notebook=False, off_screen=True)
+        mesh.plot(
+            scalars=colors,
+            render_lines_as_tubes=True,
+            style='wireframe',
+            line_width=10,
+            cmap='jet',
+            show_scalar_bar=False,
+            background='w',
+            color='lightblue',
+        )
 
-        colors = range(edges.shape[0])
-        plotter.add_mesh(mesh, scalars=colors, line_width=10, cmap='jet',
-                         )
+        # 开启 GIF 输出，并指定保存的文件名
+        plotter.open_gif(file_name)
 
-        plotter.add_mesh(mesh, scalars=colors, render_lines_as_tubes=True, style='wireframe', line_width=10, cmap='jet',
-                         name='mesh')
+        # 如果你希望捕获多帧动画，可以在此处调整摄像机或其他属性，并多次调用 write_frame()
+        # 例如，简单捕获当前帧：
+        plotter.show(auto_close=False)
+        plotter.write_frame()
 
-        # 保存为 GIF
-        plotter.show(auto_close=False)  # 不自动关闭
-        plotter.export_gif(file_name)  # 导出为 GIF
+        # 关闭绘图窗口，同时完成 GIF 的保存
         plotter.close()
 
+from matplotlib.cm import ScalarMappable
 
+def plot_ellipsoid_colormap(young_modulus, save_path):
+    if len(young_modulus) != 3:
+        raise ValueError("young_modulus 必须包含三个值 [Ex, Ey, Ez].")
 
+    Ex, Ey, Ez = young_modulus
 
-if __name__ == '__main__':
+    # 1) 生成椭球网格
+    u = np.linspace(0, np.pi, 50)
+    v = np.linspace(0, 2 * np.pi, 50)
+    u, v = np.meshgrid(u, v)
 
-    path = './generated_mat/lattices/lattices'
-    file_names = os.listdir(path)
-    save_path = './vis/generated_mat/test'
-    if not os.path.exists(save_path):
-        os.mkdir(save_path)
-    for file_name in file_names:
-        save_dir = os.path.join(save_path,file_name[:-3]+'png')
-        plot_lattice_from_path(path, file_name, save_dir=save_dir, plot_method = '1')
+    X = Ex * np.sin(u) * np.cos(v)
+    Y = Ey * np.sin(u) * np.sin(v)
+    Z = Ez * np.cos(u)
 
-    # plot_origin_lattice_from_path(path, name,cutoff=1., max_num_neighbors_threshold=5)
+    # 2) 定义用于控制颜色的标量场
+    R = np.sqrt((X / Ex)**2 + (Y / Ey)**2 + (Z / Ez)**2)
+    R_normalized = (R - R.min()) / (R.max() - R.min())
+
+    # 3) 将标量 R 映射为 RGBA 颜色
+    colors = plt.cm.jet(R_normalized)
+
+    # 4) 绘制 3D 表面
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    surf = ax.plot_surface(
+        X, Y, Z,
+        rstride=1, cstride=1,
+        facecolors=colors,  # 指定颜色
+        linewidth=0,
+        antialiased=True
+    )
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title("3D Ellipsoid of Young's Modulus")
+
+    # 5) 创建一个与颜色对应的 ScalarMappable，并关联到同一个 cmap
+    mappable = ScalarMappable(cmap='jet')
+    # 这里设置要显示在 colorbar 上的原始数据 (R)，而不是 R_normalized
+    mappable.set_array(R)
+
+    # 6) 在同一个 Axes (ax) 上放置 colorbar
+    cbar = fig.colorbar(mappable, ax=ax, shrink=0.6, aspect=10)
+    cbar.set_label("Normalized Radius R")
+
+    # 7) 保存并关闭
+    plt.savefig(save_path, dpi=300)
+    plt.close(fig)
+
+# ========== 示例调用 ==========
+if __name__ == "__main__":
+    moduli = [3.0, 2.0, 4.0]
+    plot_ellipsoid_colormap(moduli, "ellipsoid_colormap.png")

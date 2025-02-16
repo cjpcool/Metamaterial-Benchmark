@@ -5,66 +5,95 @@ train_size: 8000 # 0.7 11696.3
 valid_size: 2000
 
 wandb_args:
-  use_wandb: false
+  use_wandb: true
   entity: "jianpengc"
   project: "metabench"
-  save_name: 'mave+ve-uni_dens'
+  save_name: 'geoldm'
 
+#ae_path: './checkpoints/geoldm/ae_path'
+#ae_path: None
+exp_name: 'debug_11'
+save_dir: './checkpoints/geoldm/'
 
+# Latent Diffusion args
+train_diffusion: true
+ae_path: null
+trainable_ae: true
 
-# Experiment settings
-include_charges: false
-exp_name: debug_10
-dataset: 'qm9'            # qm9, qm9_positional
-filter_n_atoms: null      # When set to an integer value, QM9 will only contain molecules of that amount of atoms
-n_report_steps: 1
-wandb_usr: cvignac
-no_cuda: False
-wandb: False             # Use wandb?
-online: True             # True: online / False: offline
-data_dir: 'data'
+# VAE args
+latent_nf: 4
+kl_weight: 0.01
 
-# Training settings
-n_epochs: 100
-batch_size: 128
-val_batch_size: 128
+model: egnn_dynamics
+probabilistic_model: diffusion
+
+# Diffusion args
+diffusion_steps: 500
+diffusion_noise_schedule: polynomial_2
+diffusion_noise_precision: 1.0e-5
+diffusion_loss_type: l2
+
+# Training args
+n_epochs: 200
+batch_size: 64
+val_batch_size: 64
 lr: 0.0002
-brute_force: False
+brute_force: false
+actnorm: true
+break_train_epoch: false
+dp: false
+condition_time: true
+clip_grad: true
+trace: hutch
 
-break_train_epoch: False
-dp: True
-condition_time: True
-clip_grad: True
-save_model: True
+# EGNN args
+n_layers: 6
+inv_sublayers: 1
+nf: 128
+tanh: true
+attention: true
+norm_constant: 1.0
+sin_embedding: false
+
+# ODE Regularization
+ode_regularization: 0.001
+
+# Dataset args
+dataset: qm9
+datadir: qm9/temp
+filter_n_atoms: null
+dequantization: argmax_variational
+
+# Logging and reporting
+n_report_steps: 1
+wandb_usr: null
+no_wandb: false
+online: true
+
+# System args
+no_cuda: false
+save_model: true
 generate_epochs: 1
 num_workers: 0
-test_epochs: 1
-data_augmentation: False
+test_epochs: 10
+data_augmentation: false
+
+# Conditioning args
+conditioning: ['y']
+
+# Resume training
 resume: null
 start_epoch: 0
-ema_decay: 0.           # 'Amount of EMA decay, 0 means off. A reasonable value  is 0.999.'
-augment_noise: 0
+ema_decay: 0.999
 
-# Model settings
-model: 'egnn_dynamics'    # 'our_dynamics | schnet | simple_dynamics | kernel_dynamics | egnn_dynamics |gnn_dynamics'
-probabilistic_model: 'diffusion'         # 'flow | diffusion | diffusion_ddpm'
-diffusion_steps: 200
-diffusion_noise_schedule: 'learned'
-diffusion_loss_type: 'vlb'
-n_layers: 6
-nf: 64          # Layer size
-ode_regularization: 0.001
-trace: 'hutch'        # hutch, exact
-dequantization: 'argmax_variational'        # 'uniform | variational | argmax_variational | deterministic'
-tanh: True                                  # 'use tanh in the coord_mlp'
-attention: True                             # 'use attention in the EGNN'
-x_aggregation: 'sum'                        # 'sum', 'mean'
-conditioning: []    # 'multiple arguments can be passed including: homo | onehot | lumo | num_atoms | etc. '
-                    # usage: "conditioning=[H_thermo, homo, onehot, H_thermo]"')
-actnorm: True
-norm_constant: 1             # diff/(|diff| + norm_constant)
+# Augmentation and Stability
+augment_noise: 0.0
+n_stability_samples: 500
+normalize_factors: [1, 4, 1]
+remove_h: false
+include_charges: false
 
-
-# Placeholders
-context_node_nf: 0
-data_root_dir: null
+# Visualization args
+visualize_every_batch: 100000000
+normalization_factor: 1.0
+aggregation_method: sum

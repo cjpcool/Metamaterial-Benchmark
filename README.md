@@ -59,4 +59,18 @@ conda install pyg -c pyg
 conda install pandas
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.4.1+cu124.html
 pip install e3nn matplotlib scikit-learn plotly ase tensorboard==2.17.0 wandb
+
+# geolDM
+pip install imageio rdkit
+~~~
+~~~
+cd ocp
+pip install -e .
+pip insall lmdb
+~~~
+
+For CDVAE:
+~~~
+conda install pytorch_lightning
+pip install hydra-core-1.3.2 omegaconf-2.3.0 hydra-joblib-launcher python-dotenv-1.0.1 pymatgen p_tqdm
 ~~~
