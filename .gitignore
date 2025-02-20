@@ -1,0 +1,16 @@
+crystal-text-llm/exp/
+crystal-text-llm/cond_generated_structures.pkl
+crystal-text-llm/uncond_generated_structures.pkl
+
+CrystaLLM/cond_gen_lattices
+CrystaLLM/uncond_gen_lattices
+CrystaLLM/cond_gen_lattices.pkl
+CrystaLLM/uncond_gen_lattices.pkl
+CrystaLLM/metamat_crystallm_v1_large_feb17/
+CrystaLLM/metamat_crystallm_v1_small_feb12/
+CrystaLLM/aug_train_structures.pkl.gz
+CrystaLLM/metamat_tokens_v1_train/
+
+wandb/
+
+LatticeModulus/data/

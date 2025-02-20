@@ -1,0 +1,29 @@
+out_dir: '/home/zhang/Metamaterial-Benchmark/CrystaLLM/metamat_crystallm_v1_large_feb17'
+eval_interval: 100  # how often to evaluate against the validation set
+eval_iters_train: 100
+log_interval: 1  # how often to print to the console (1 = every iteration)
+init_from: 'scratch'
+
+# whether to always save a checkpoint
+always_save_checkpoint: True
+
+# whether to validate with a validation set
+validate: False
+
+dataset: '/home/zhang/Metamaterial-Benchmark/CrystaLLM/metamat_tokens_v1_train'
+batch_size: 16
+block_size: 2048
+
+n_layer: 16
+n_head: 16
+n_embd: 1024
+dropout: 0.1
+
+learning_rate: 1e-3
+decay_lr: True
+max_iters: 2000
+lr_decay_iters: 2000
+min_lr: 1e-4
+beta2: 0.99
+
+warmup_iters: 100

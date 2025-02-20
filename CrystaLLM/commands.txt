@@ -1,0 +1,33 @@
+python CrystaLLM/bin/tokenize_cifs.py \
+--train_fname /home/zhang/Metamaterial-Benchmark/CrystaLLM/aug_train_structures.pkl.gz \
+--out_dir CrystaLLM/metamat_tokens_v1_train/ \
+--workers 4
+
+
+
+CUDA_VISIBLE_DEVICES=4 python CrystaLLM/bin/train.py \
+    --config=CrystaLLM/configs/crystallm_v1_small.yaml
+
+CUDA_VISIBLE_DEVICES=4 python CrystaLLM/bin/train.py \
+    --config=CrystaLLM/configs/crystallm_v1_large.yaml
+
+
+CUDA_VISIBLE_DEVICES=4 python CrystaLLM/bin/sample.py \
+    model_dir=/home/zhang/Metamaterial-Benchmark/CrystaLLM/metamat_crystallm_v1_large_feb17 \
+    out_dir=/home/zhang/Metamaterial-Benchmark/CrystaLLM/ \
+    start=$'lattice_data_' \
+    target=file \
+    num_samples=1000 \
+    top_k=10 \
+    max_new_tokens=2048 \
+    device=cuda
+
+CUDA_VISIBLE_DEVICES=6 python CrystaLLM/bin/sample.py \
+    model_dir=/home/zhang/Metamaterial-Benchmark/CrystaLLM/metamat_crystallm_v1_large_feb17 \
+    out_dir=/home/zhang/Metamaterial-Benchmark/CrystaLLM/ \
+    start=$'FILE:' \
+    target=file \
+    num_samples=1000 \
+    top_k=10 \
+    max_new_tokens=2048 \
+    device=cuda
