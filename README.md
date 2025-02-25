@@ -1,10 +1,19 @@
-# Metamaterial-Benchmark
-Unified representations for metamaterial datasets.
+# `MatamatBench`: Integrating Heterogeneous Data, Computational Tools, and Visual Interface for Metamaterial Discovery
+![MetaBench](https://github.com/user-attachments/assets/c8dd5b2b-bc68-41ce-bd97-53051b63a191)
 
-This project aims to collect various metamaterial datasets, and create a unified graph representation for them, benchmarking metamaterial with graph-based methods.
 
-## Lattice description:
-  Only consider a unit cell M = $(L, A, P, X, X_L, E)$, 
+## Abstract
+Metamaterials, engineered materials with architected structures across multiple length scales, offer unprecedented and tunable mechanical properties that surpass those of conventional materials. However, leveraging advanced machine learning (ML) for metamaterial discovery is hindered by three fundamental challenges: {(C1) Data Heterogeneity Challenge} arises from heterogeneous data sources, heterogeneous composition scales, and heterogeneous structure categories; {(C2) Model Complexity Challenge} stems from the intricate geometric constraints of ML models, which complicate their adaptation to metamaterial structures; and {(C3) Human-AI Collaboration Challenge} comes from the ``dual black-box'' nature of sophisticated ML models and the need for intuitive user interfaces. 
+To tackle these challenges, we introduce a unified framework, named `MetamatBench`, that operates on three levels. 
+(1) At the \emph{data level}, we integrate and standardize 5 heterogeneous, multi-modal metamaterial datasets.
+(2) The \emph{ML level} provides a comprehensive toolkit that adapts 17 state-of-the-art ML methods for metamaterial discovery. It also includes a comprehensive evaluation suite with 12 novel performance metrics with finite element-based assessments to ensure accurate and reliable model validation.
+(3) The \emph{user level} features a visual-interactive interface that bridges the gap between complex ML techniques and non-ML researchers, advancing property prediction and inverse design of metamaterials for research and applications.
+`MetamatBench` offers a unified platform deployed at [interfalceurl](http://zhoulab-1.cs.vt.edu:5550) that enables machine learning researchers and practitioners to develop and evaluate new methodologies in metamaterial discovery. 
+For accessibility and reproducibility, we open-source our benchmark and the codebase at [codebaseurl](https://github.com/cjpcool/Metamaterial-Benchmark).
+
+
+## Unified Representation:
+  Only consider a metamaterial representation $\mathcal{M}(\mathbf{L}, \mathcal{U}, \mathbf{y})$, 
   * 𝐋 : Lattice structure. 
     Lengths & angles: (a, b, c, alpha, beta, gamma). E.g., cubic: (1,1,1, 90, 90, 90)
     Vector representation $𝐋 \in 𝑹^{(3×3)}$
