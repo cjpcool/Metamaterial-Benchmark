@@ -10,7 +10,8 @@ import pandas as pd
 import streamlit as st
 from datasets import LatticeModulus, LatticeStiffness
 from visualization.homo3D import homo3D
-from visualization.vis import visualizeLattice_interactive, visualizeLattice
+from visualization.vis import visualizeLattice_interactive, visualizeLattice, plot_ellipsoid_colormap_modulus, \
+    plot_directional_modulus_from_poissons
 from visualization.voxel import generate_voxel, visualizeVox
 from visualization.visualize_Cij import visualizeCij
 from visualization.visualize_rankboard import plot_rankingboard
@@ -115,6 +116,22 @@ class ResearchBackend:
 
         return self.dataset_visualization_path
 
+    def interaction_data_visualize(self, index, datasetname):
+        # self.clear_dataset_results()
+        if 'Meta' in datasetname:
+            if datasetname == "MetaModulus":
+                dataset = LatticeModulus(os.path.join(self.dataset_root, 'LatticeModulus'), file_name='data')
+            elif datasetname == "MetaStiffness":
+                dataset = LatticeStiffness(os.path.join(self.dataset_root, 'LatticeStiffness'), file_name='training')
+            data = dataset[int(index)]
+            cart_coords = data.cart_coords.numpy()
+            edge_index = data.edge_index.numpy()
+
+            self.default_model_interaction_path = os.path.join(self.default_model_interaction_root, 'visualization.png')
+            # visualizeLattice_interactive(cart_coords, edge_index, file_name=self.dataset_visualization_path)
+            visualizeLattice(cart_coords, edge_index, save_dir=self.default_model_interaction_path, dpi=150)
+
+        return self.default_model_interaction_path
 
     def dataset_info_vox(self, index, vox_size, datasetname):
         vox_size = int(vox_size)
@@ -163,7 +180,11 @@ class ResearchBackend:
 
     def method_generation(self):
         pass
-    def method_prediction(self, method_name, datasetname, dataset_index, model_path):
+    def method_prediction(self, method_name, datasetname,property, dataset_index, model_path):
+        modulus_property_map={
+            "Young's Modulus":'young', "Shear's Modulus":'shear', "Poisson's Ratio":'poisson'
+        }
+        dataset_index = int(dataset_index)
         if datasetname == "MetaModulus":
             dataset = LatticeModulus(os.path.join(self.dataset_root,'LatticeModulus'), file_name='data')
         elif datasetname == 'MetaStiffness':
@@ -173,6 +194,23 @@ class ResearchBackend:
             model = MaceVeModel(model_name='mace_ve', dataset_name='LatticeModulus',
                                 device=self.device, root_path='./')
             model.config['wandb_args']['use_wandb']=False
+            model.config['training']['pred_property'] = modulus_property_map[property]
+            model.config['network']['max_edge_radius'] = dataset.edge_feat.max()
+            data = dataset.get(dataset_index)
+            model.load_model(checkpoint_path=f'./checkpoints/mace_ve/{modulus_property_map[property]}_3/best_model.pth')
+            output = model.predict(data)
+        return output.view(-1).tolist()
+
+    def method_prediction_result_visualization(self, results, property_name):
+        if "Modulus" in property_name or 'modulus' in property_name:
+            plot_ellipsoid_colormap_modulus(results, self.default_prediction_path, property_name)
+
+        if 'Poisson' in property_name or 'poisson' in property_name:
+            plot_directional_modulus_from_poissons(results,self.default_prediction_path)
+
+        return self.default_prediction_path
+
+
 
     def load_methods_data(self,csv_path):
         self.methods_df = pd.read_csv(csv_path)

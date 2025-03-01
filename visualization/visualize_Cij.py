@@ -33,7 +33,7 @@ def visualizeCij(homogenized_constitutive_matrix, resolution_for_visualization):
     V_normalized = (V - np.min(V)) / (np.max(V) - np.min(V))
 
     fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(10, 8), dpi=150)
-    surf = ax.plot_surface(x, y, z, facecolors=plt.cm.jet(V_normalized), linewidth=0, antialiased=False)
+    # surf = ax.plot_surface(x, y, z, facecolors=plt.cm.jet(V_normalized), linewidth=0, antialiased=False)
     ax.set_xlabel('x', fontsize=14)
     ax.set_ylabel('y', fontsize=14)
     ax.set_zlabel('z', fontsize=14)

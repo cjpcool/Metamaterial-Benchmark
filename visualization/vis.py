@@ -8,6 +8,8 @@ from utils.mat_utils import frac_to_cart_coords, get_pbc_cutoff_graphs
 import torch
 from matplotlib import pyplot as plt
 import pyvista
+import seaborn as sns
+from matplotlib import cm
 
 def plot_origin_lattice_from_path(path, name, cutoff=1.0,max_num_neighbors_threshold=3, save_dir=None):
     full_path = os.path.join(path,name)
@@ -103,7 +105,7 @@ def visualizeLattice(nodes, struts, save_dir=None, dpi=150):
     # # Turn off the grid
     # ax.grid(False)
     if save_dir is not None:
-        plt.savefig(save_dir,bbox_inches='tight')
+        plt.savefig(save_dir,bbox_inches='tight', dpi=300)
     else:
         plt.show()
 
@@ -127,7 +129,6 @@ def visualizeLattice_interactive(nodes, edges, file_name=None):
     colors = range(edges.shape[0])
 
     if file_name is None:
-        # 直接交互式显示
         mesh.plot(
             scalars=colors,
             render_lines_as_tubes=True,
@@ -139,7 +140,6 @@ def visualizeLattice_interactive(nodes, edges, file_name=None):
             color='lightblue',
         )
     else:
-        # 使用离屏绘图模式
         plotter = pyvista.Plotter(notebook=False, off_screen=True)
         mesh.plot(
             scalars=colors,
@@ -152,26 +152,21 @@ def visualizeLattice_interactive(nodes, edges, file_name=None):
             color='lightblue',
         )
 
-        # 开启 GIF 输出，并指定保存的文件名
         plotter.open_gif(file_name)
 
-        # 如果你希望捕获多帧动画，可以在此处调整摄像机或其他属性，并多次调用 write_frame()
-        # 例如，简单捕获当前帧：
         plotter.show(auto_close=False)
         plotter.write_frame()
 
-        # 关闭绘图窗口，同时完成 GIF 的保存
         plotter.close()
 
 from matplotlib.cm import ScalarMappable
 
-def plot_ellipsoid_colormap(young_modulus, save_path):
+def plot_ellipsoid_colormap_modulus(young_modulus, save_path, property_name):
     if len(young_modulus) != 3:
-        raise ValueError("young_modulus Must contain three values [Ex, Ey, Ez].")
+        raise ValueError(f"{property_name} Must contain three values [Ex, Ey, Ez].")
 
     Ex, Ey, Ez = young_modulus
 
-    # 1) 生成椭球网格
     u = np.linspace(0, np.pi, 50)
     v = np.linspace(0, 2 * np.pi, 50)
     u, v = np.meshgrid(u, v)
@@ -180,21 +175,18 @@ def plot_ellipsoid_colormap(young_modulus, save_path):
     Y = Ey * np.sin(u) * np.sin(v)
     Z = Ez * np.cos(u)
 
-    # 2) 定义用于控制颜色的标量场
     R = np.sqrt((X / Ex)**2 + (Y / Ey)**2 + (Z / Ez)**2)
     R_normalized = (R - R.min()) / (R.max() - R.min())
 
-    # 3) 将标量 R 映射为 RGBA 颜色
     colors = plt.cm.jet(R_normalized)
 
-    # 4) 绘制 3D 表面
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection='3d')
 
     surf = ax.plot_surface(
         X, Y, Z,
         rstride=1, cstride=1,
-        facecolors=colors,  # 指定颜色
+        facecolors=colors,
         linewidth=0,
         antialiased=True
     )
@@ -202,22 +194,78 @@ def plot_ellipsoid_colormap(young_modulus, save_path):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title("3D Ellipsoid of Young's Modulus")
+    ax.set_title(f"3D Ellipsoid of {property_name}", fontsize=20)
 
-    # 5) 创建一个与颜色对应的 ScalarMappable，并关联到同一个 cmap
     mappable = ScalarMappable(cmap='jet')
-    # 这里设置要显示在 colorbar 上的原始数据 (R)，而不是 R_normalized
     mappable.set_array(R)
 
-    # 6) 在同一个 Axes (ax) 上放置 colorbar
     cbar = fig.colorbar(mappable, ax=ax, shrink=0.6, aspect=10)
     cbar.set_label("Normalized Radius R")
 
-    # 7) 保存并关闭
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
 
-# ========== 示例调用 ==========
+from matplotlib.colors import Normalize
+def plot_directional_modulus_from_poissons(nu, save_path=None, E_default=1.0, cmap='jet'):
+    # nu: 6 values [ν12, ν13, ν23, ν21, ν31, ν32]
+    # Assume E1 = E2 = E3 = E_default
+    if isinstance(nu, list):
+        nu = np.array(nu)
+    E1 = E2 = E3 = E_default
+    nu12, nu13, nu23, nu21, nu31, nu32 = nu
+    # Build the compliance matrix S
+    S = np.array([
+        [1 / E1, -nu12 / E1, -nu13 / E1],
+        [-nu21 / E2, 1 / E2, -nu23 / E2],
+        [-nu31 / E3, -nu32 / E3, 1 / E3]
+    ])
+
+    # Create spherical grid
+    n_u, n_v = 100, 100
+    u = np.linspace(0, np.pi, n_u)
+    v = np.linspace(0, 2 * np.pi, n_v)
+    U, V = np.meshgrid(u, v)
+    E_dir = np.zeros_like(U)
+
+    # Compute directional modulus: E(n) = 1/(nᵀ S n)
+    for i in range(n_u):
+        for j in range(n_v):
+            theta = U[i, j]
+            phi = V[i, j]
+            n_vec = np.array([np.sin(theta) * np.cos(phi),
+                              np.sin(theta) * np.sin(phi),
+                              np.cos(theta)])
+            E_dir[i, j] = 1.0 / (n_vec.T @ S @ n_vec)
+
+    # Convert spherical to Cartesian coordinates for plotting
+    X = E_dir * np.sin(U) * np.cos(V)
+    Y = E_dir * np.sin(U) * np.sin(V)
+    Z = E_dir * np.cos(U)
+
+    # Plot the modulus surface
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    norm = Normalize(vmin=E_dir.min(), vmax=E_dir.max())
+    colors = plt.get_cmap(cmap)(norm(E_dir))
+
+    ax.plot_surface(X, Y, Z, facecolors=colors, linewidth=0, antialiased=True)
+    ax.set_title("Directional Modulus Surface (E=1.0) for Poisson's Ratio")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+
+    # Add colorbar
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.7, aspect=15, pad=0.1)
+    cbar.set_label("Normalized Modulus")
+
+    plt.savefig(save_path, dpi=300)
+    # plt.show()
+    plt.close(fig)
+
+
 if __name__ == "__main__":
-    moduli = [3.0, 2.0, 4.0]
-    plot_ellipsoid_colormap(moduli, "ellipsoid_colormap.png")
+    poisson_matrix = np.array([0.25, 0.20, 0.15, 0.20, 0.30, 0.10])
+
+    plot_directional_modulus_from_poissons(poisson_matrix, )

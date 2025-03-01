@@ -119,6 +119,17 @@ class MaceVeModel(BaseModel):
         print(f'R2:{r2}, NRMSE:{nrmse}, MAE:{mae}')
         return r2, nrmse, mae
 
+    def predict(self, data):
+        with torch.no_grad():
+            model = self.model.to(self.device)
+            batch = data.to(self.device)
+            shifts = torch.zeros((batch.edge_index.shape[1], 3), dtype=torch.float32, device=self.device)
+            num_graphs = 1
+            b = torch.zeros((batch.cart_coords.shape[0],1), dtype=torch.long, device=self.device)
+            output = model(batch.cart_coords, batch.edge_index, shifts, batch.edge_feat, batch.node_feat,
+                                num_graphs, b)
+        return output['y'].cpu()
+
     def test(self):
         print('Testing...')
         params = Namespace(**self.config['training'])
@@ -174,8 +185,9 @@ class MaceVeModel(BaseModel):
 
 
     def load_model(self, checkpoint_path=None):
-        max_edge_radius = self.train_data.edge_feat.max()
-        self.config['network']['max_edge_radius'] = max_edge_radius
+        if hasattr(self, 'train_data') and self.train_data is not None:
+            max_edge_radius = self.train_data.edge_feat.max()
+            self.config['network']['max_edge_radius'] = max_edge_radius
         output_dim_map = {
             "all": self.config['network']['output_dim'],
             "young": 3,

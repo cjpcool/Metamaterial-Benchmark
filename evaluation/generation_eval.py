@@ -472,6 +472,7 @@ if __name__ == '__main__':
     - `lengths`: the lengths of the lattice, shape `(num_evals, M, 3)`
     - `angles`: the angles of the lattice, shape `(num_evals, M, 3)`
     - `num_atoms`: the number of atoms in each material, shape `(num_evals, M)`
+    - 'prop_list': (12)
 
 
     The following codes will print:

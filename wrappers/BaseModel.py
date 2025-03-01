@@ -33,6 +33,9 @@ class BaseModel(ABC):
 
         return self.train_data, self.val_data, self.test_data
 
+    def generate(self, condition):
+        pass
+
 
     def evaluate(self):
         pass

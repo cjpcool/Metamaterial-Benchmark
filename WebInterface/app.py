@@ -223,8 +223,8 @@ def show_page_3():
             else:
                 prediction_placeholder.info("No prediction result available yet.")
 
-        display_interaction(backend.default_model_interaction_path)
-        display_prediction(backend.default_prediction_path)
+        # display_interaction(backend.default_model_interaction_path)
+        # display_prediction(backend.default_prediction_path)
     else:
         st.subheader("Results Visualization")
         result_placeholder = st.empty()
@@ -253,7 +253,7 @@ def show_page_3():
         if task == "Generation":
             # Generation
             dataset = st.selectbox("Dataset", backend.datasets, key="gen_dataset")
-            model_path = st.text_input("Model Path", key="gen_model_path")
+            model_path = st.text_input("Model Path", key="pred_model_path", disable=True, value='checkpoint')
             save_path = st.text_input("Save Path", key="gen_save_path")
             condition_value = st.text_input("Condition Value", key="gen_condition_value", placeholder="Can be null")
             col_gen, _ = st.columns(2)
@@ -264,20 +264,30 @@ def show_page_3():
                 else:
                     display_result(result_path)
         elif task == "Prediction":
-            dataset = st.selectbox("Dataset", backend.datasets, key="pred_dataset")
+            # dataset = st.selectbox("Dataset", backend.datasets, key="pred_dataset")
             properties = ["Young's Modulus", "Shear's Modulus", "Poisson's Ratio"]
             col1, col2 = st.columns(2)
             with col1:
-                dataset = st.selectbox("Datasets", dataset)
+                dataset = st.selectbox("Datasets", backend.datasets)
             with col2:
                 property = st.selectbox("Property", properties)
             dataset_index = st.text_input("Dataset Index", key="pred_dataset_index")
-            model_path = st.text_input("Model Path", key="pred_model_path")
+            col_viz, = st.columns(1)
+            if col_viz.button("Visualize Unit Cell"):
+                st.session_state.interaction_data_vis_new_path = backend.interaction_data_visualize(dataset_index, dataset)
+                display_interaction(st.session_state.interaction_data_vis_new_path)
+
+            model_path = st.text_input("Model Path", key="pred_model_path", disabled=True, value='checkpoint')
             col_pred, _ = st.columns(2)
             if col_pred.button("Predict"):
-                interaction_result, prediction_result = backend.method_prediction(st.session_state.selected_method, dataset, dataset_index, model_path)
-                display_interaction(interaction_result)
-                display_prediction(prediction_result)
+                if 'interaction_data_vis_new_path' not in st.session_state.keys():
+                    st.session_state.interaction_data_vis_new_path = backend.interaction_data_visualize(dataset_index,
+                                                                                                        dataset)
+                display_interaction(st.session_state.interaction_data_vis_new_path)
+                prediction_result = backend.method_prediction(st.session_state.selected_method, dataset, property, dataset_index, model_path)
+                st.markdown(f"Predict {property}: {prediction_result}.")
+                prediction_result_vis_path = backend.method_prediction_result_visualization(prediction_result, property)
+                display_prediction(prediction_result_vis_path)
         else:
             st.info("Unsupported task type for this method.")
 
