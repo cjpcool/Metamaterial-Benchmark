@@ -14,6 +14,7 @@ from torch_scatter import scatter_mean
 # from prefetch_generator import BackgroundGenerator
 from .parameters import *
 
+
 def dReLU(x):
     return (x-14) * ((x-14) > 0)
 
@@ -57,6 +58,7 @@ def frange_cycle_linear(start, stop, n_epoch, n_cycle=4, ratio=0.5):
 class vaeModel(nn.Module):
     def __init__(self):
         super(vaeModel, self).__init__()
+
         ## encoder layers ##
         # adj_encoder
         self.en_adj_ch1, self.en_adj_ch2, self.en_adj_ch3, self.en_adj_ch4 = 12, 16, 16, 16

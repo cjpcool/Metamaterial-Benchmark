@@ -5,6 +5,7 @@ Created on Thu Aug 22 14:27:45 2024
 @author: zj1283
 """
 import numpy as np
+import scipy as sp
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import spsolve, LinearOperator, cg
 from scipy.sparse import csr_matrix
@@ -88,8 +89,8 @@ def homo3D(lx, ly, lz, lambda_, mu, voxel):
     K_act = K[activedofs[3:]-1, :][:, activedofs[3:]-1]
    #  free_dofs = activedofs[3:]
     # K_act = K[free_dofs, :][:, free_dofs]
-    # K_act = K_act + sp.eye(K_act.shape[0]) * 1e-10
-    K_act = csc_matrix(K_act)  # Convert matrix to CSC format
+    K_act = K_act + sp.eye(K_act.shape[0]) * 1e-5
+    # K_act = csc_matrix(K_act)  # Convert matrix to CSC format
     M = LinearOperator(K_act.shape, spilu(K_act).solve)
     # Ensure b is a proper 1D vector
     for i in range(6):

@@ -13,7 +13,14 @@ def load_config(config_path):
     with open(config_path, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
 
-config = load_config('configs/uni_truss/config.yml')
+
+import os
+import sys
+# root_path = os.path.dirname(os.path.abspath(__file__))
+# parent_dir = os.path.abspath(os.path.join(root_path, '..'))
+# if parent_dir not in sys.path:
+#     sys.path.insert(0, parent_dir)
+config = load_config('.config.yml')
 
 def vec2tensor(ex):
     exC = np.zeros([6,6])

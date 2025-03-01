@@ -103,7 +103,7 @@ def visualizeLattice(nodes, struts, save_dir=None, dpi=150):
     # # Turn off the grid
     # ax.grid(False)
     if save_dir is not None:
-        plt.savefig(save_dir)
+        plt.savefig(save_dir,bbox_inches='tight')
     else:
         plt.show()
 
@@ -167,7 +167,7 @@ from matplotlib.cm import ScalarMappable
 
 def plot_ellipsoid_colormap(young_modulus, save_path):
     if len(young_modulus) != 3:
-        raise ValueError("young_modulus 必须包含三个值 [Ex, Ey, Ez].")
+        raise ValueError("young_modulus Must contain three values [Ex, Ey, Ez].")
 
     Ex, Ey, Ez = young_modulus
 

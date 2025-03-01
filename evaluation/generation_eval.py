@@ -181,7 +181,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         selected_data_for_eval = self.test_dataset.copy(selected_idx)
 
         train_x = [data.cart_coords for data in selected_data_for_eval]
-        train_y = test_data.data.y[selected_idx]
+        train_y = self.test_dataset.data.y[selected_idx]
 
         neigh_y = NearestNeighbors(n_neighbors=self.cluster_size, metric='euclidean')
         neigh_y.fit(train_y)
@@ -327,7 +327,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
         periodicity_ratio = np.array(periodicity).sum() / len(periodicity)
         print(f"Periodicity rate: {periodicity_ratio}")
-        mean_symmetry = np.array(symmetry_ratio).mean()
+        mean_symmetry = np.array(symmetry_ratio).sum() / len(periodicity)
         print(f"Mean Central Symmetry rate: {mean_symmetry}")
         connectivity_ratio = np.array(connectivity).sum() / len(connectivity)
         print(f"Connectivity rate: {connectivity_ratio}")

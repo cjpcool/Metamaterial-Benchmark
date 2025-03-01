@@ -30,7 +30,7 @@ def visualizeVox(voxel, save_fig=None):
 
     # Show the plot
     if save_fig is not None:
-        plt.savefig(save_fig)
+        plt.savefig(save_fig,bbox_inches='tight')
     else:
         plt.show()
 
