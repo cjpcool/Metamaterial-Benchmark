@@ -1,0 +1,10 @@
+Method,Year,V_DR%,V_C%,V_S%,V_P%,Mean Validity,Cov R.%,Cov P.%,Mean Diversity,Cond. Effectiveness,MET(s),MTT(ms),Category,Backbone
+EDM,2022,N/A,N/A,0.0,0.0,0.0,0.0,0.0,0.0,982.13,3.183,161.39,Molecule,Diff
+GeoLDM,2023,N/A,N/A,0.04,0.0,0.02,0.0,0.0,0.0,60.59,2.836,606.8,Molecule,LatDiff
+CDVAE,2022,N/A,N/A,57.03,0.40,28.72,55.85,95.80,75.83,N/A,93,97.42,Crystal,VAE+Diff
+DiffCSP,2023,N/A,N/A,34.46,6.50,20.48,95.80,96.65,96.23,N/A,2.97,63.79,Crystal,Diff
+EquiCSP,2024,N/A,N/A,55.37,3.55,29.46,100.0,52.35,76.18,N/A,1.90,64.57,Crystal,Diff
+Cond-CDVAE,2024,N/A,N/A,19.37,2.00,12.69,68.60,80.50,74.55,0.2050,225,314.5,Crystal,Diff
+SyMat,2024,N/A,N/A,21.28,0.00,8.64,0.00,0.00,0.00,N/A,89.49,141.42,Crystal,VAE+Diff
+CrystaLLM,2024,84.6,53.8,60.6,70.5,67.38,100.0,100.0,100.0,0.0983,2.08,14511,Crystal,LLM
+Crystal-Text-LLM,2024,23.80,76.80,89.78,97.20,71.90,100.0,100.0,100.0,0.0896,0.71,46490,Crystal,LLM
