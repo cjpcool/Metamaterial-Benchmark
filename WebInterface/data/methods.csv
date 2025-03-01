@@ -1,0 +1,18 @@
+Method,Task,Target Graph,Periodicity,Symmetry,Backbone,URL,Publisher
+CDVAE,Generation,Crystal,Trans Inv.,Inv Enc + Equiv Dec,VAE+Diff,https://arxiv.org/abs/2110.06197,ICLR'22
+Cond-CDVAE,Generation,Crystal,Trans Inv.,Inv Enc + Equiv Dec,VAE+Diff,https://www.nature.com/articles/s41524-024-01443-y,Nat. Commun.'24
+SyMat,Generation,Crystal,Trans Inv.,Inv Enc + Inv Dec,VAE+Diff,https://arxiv.org/abs/2307.02707,NeurIPS'23
+DiffCSP,Generation,Crystal,Trans Inv.,Equiv. (lacks lattice perm. eq.),Diff,https://arxiv.org/abs/2309.04475,NeurIPS'23
+EquiCSP,Generation,Crystal,Trans Inv. + Perm Eq.,Equiv.,Diff,https://openreview.net/forum?id=VRv8KjJNuj,ICML'24
+Crystal-Text-LLM,Generation,Crystal,N/A,N/A,LLaMA-2,https://openreview.net/forum?id=0r5DE2ZSwJ,AI4Mat'23
+CrystaLLM,Generation,Crystal,N/A,N/A,LLaMA-2,https://www.nature.com/articles/s41467-024-54639-7,Nat. Commun.'24
+EDM,Generation,Molecule,N/A,Equiv.,Diff,https://proceedings.mlr.press/v162/hoogeboom22a,PMLR'22
+GeoLDM,Generation,Molecule,N/A,Equiv.,LatDiff,https://proceedings.mlr.press/v202/xu23n.html,PMLR'23
+SchNet,Prediction,Molecule,N/A,Glob Inv,MPNN,https://arxiv.org/abs/1706.08566,NeurIPS'17
+SphereNet,Prediction,Molecule,N/A,Glob Inv,MPNN,https://arxiv.org/abs/2102.05013,ICLR'22
+ViSNet,Prediction,Molecule,Trans+Rot Inv,Equiv.,MPNN,https://www.nature.com/articles/s41467-023-43720-2,Nat. Commun.'23
+Equiformer,Prediction,Molecule,N/A,Equiv.,MPNN,https://openreview.net/forum?id=KwmPfARgOTD,ICLR'23
+ALIGNN,Prediction,Crystal,Trans Inv.,Glob Inv,GNN,https://www.nature.com/articles/s41524-021-00650-1,npj Comput. Mater.'21
+CGCNN,Prediction,Crystal,Trans Inv.,Glob Inv,GCN,https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.120.145301
+UniTruss,Prediction,Metamaterial,N/A,N/A,VAE,https://www.nature.com/articles/s41467-023-42068-x,Nat. Commun.'23
+MACE+ve,Prediction,Metamaterial,N/A,Equiv.,GNN,https://openreview.net/forum?id=smy4DsUbBo,ICLR'24

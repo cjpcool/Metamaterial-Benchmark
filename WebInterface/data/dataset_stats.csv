@@ -1,0 +1,6 @@
+Dataset,Description,Periodic,Property,# Sample
+MetaModulus,"Architected truss metamaterials for modulus design",Yes,"Mechanical properties",16707
+MetaStiffness,"Architected truss metamaterials for stiffness optimization",Yes,"Elastic constants",1048575
+PointCloud,"Truss metamaterials (3D point cloud representation)",Yes,"Mechanical properties",29400
+MetaTruss,"Architected truss metamaterials for homogeneous stiffness",Yes,"Homogeneous stiffness",965736
+LagrangianFrame,"Shell and truss metamaterials (2D Lagrangian frame)",Yes,"Stress and strain",53007

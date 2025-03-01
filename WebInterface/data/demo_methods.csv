@@ -1,0 +1,4 @@
+Method,Task,Target Graph,Periodicity,Symmetry,Backbone,URL,Publisher
+MACE+ve,Prediction,Metamaterial,N/A,Equiv.,GNN,https://openreview.net/forum?id=smy4DsUbBo,ICLR'24
+Crystal-Text-LLM,Generation,Crystal,N/A,N/A,LLaMA-2,https://openreview.net/forum?id=0r5DE2ZSwJ,AI4Mat'23
+CDVAE,Generation,Crystal,Trans Inv.,Inv Enc + Equiv Dec,VAE+Diff,https://arxiv.org/abs/2110.06197,ICLR'22

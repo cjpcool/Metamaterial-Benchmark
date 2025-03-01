@@ -1,9 +1,14 @@
 data_name: 'LatticeModulus'
-data_path: 'D:\项目\Material design\code_data\data\LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus' #'D:\项目\Material design\code_data\data\LatticeModulus'
 data_seed: 42
-train_size: 8000
+train_size: 8000 # 0.7 11696.3
 valid_size: 2000
 
+wandb_args:
+  use_wandb: false
+  entity: "jianpengc"
+  project: "metabench"
+  save_name: 'mave+ve-uni_dens'
 
 network:
   lmax: 4
@@ -19,26 +24,30 @@ network:
   global_reduction: mean
   message_passes: 2
   positive_function: matrix_power_2
-
-  output_dim: 12
   node_ft_dim: 4
 
+  output_dim: 12
+
 training:
+  pred_property: 'all' # young, shear, poisson, all
+
   rotate: false
-  batch_size: 4
-  valid_batch_size: 4
+  batch_size: 32
+  valid_batch_size: 32
   log_every_n_steps: 25
   optimizer: adamw
-  lr: 0.001
+  lr: 3.0e-4
   amsgrad: true
-  weight_decay: 1.0e-8
+  weight_decay: 0.
   beta1: 0.9
-  epsilon: 1.0e-8
+  epsilon: 1.0e-6
   num_workers: 0
 
   use_cuda: true
-  log_dir: './logs/mace_ve/'
-  accumulate_grad_batches: 1  # effective batch size 256
+  log_dir: './logs/mace_ve/uni_dens'
+  save_dir: './checkpoints/mace_ve/uni_dens'
+  accumulate_grad_batches: 8  # effective batch size 256
   gradient_clip_val: 10.0
-  max_steps: 50000
-  val_check_interval: 100
+  max_steps: 20000
+  patience: 100
+  val_check_interval: 20

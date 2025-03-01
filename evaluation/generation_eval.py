@@ -3,9 +3,12 @@ import sys
 import warnings
 
 from scipy.spatial.distance import cdist
+from torch_cluster import radius_graph
+from tqdm import tqdm
 
-from datasets.dataset_truss import LatticeStiffness
-
+from datasets.dataset_truss import LatticeStiffness, LatticeModulus
+from scipy.optimize import linear_sum_assignment
+from eval_utils import cart_to_frac_coords
 sys.path.append('../')
 from typing import List
 
@@ -13,7 +16,6 @@ import torch
 import numpy as np
 
 import networkx as nx
-from jedi.api import file_name
 from scipy.spatial import distance
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
 from datasets.baseDataset import LatticeTruss
@@ -25,7 +27,7 @@ from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
 from sklearn.utils import shuffle
 
 
-def pad_to_max_length(fps_list,max_length, padding_value=0):
+def pad_to_max_length(fps_list,max_length, padding_value=float('inf')):
     # Pad each fingerprint to the max_length with the specified padding_value
     padded_fps = [np.pad(fp, ((0,max_length - len(fp)), (0,0)), 'constant', constant_values=(padding_value)) for fp in fps_list]
     return np.array(padded_fps)
@@ -71,9 +73,9 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
                  edges: List[np.ndarray] = None,
                  lattice_vectors: List[np.ndarray] = None,
                  cluster_size: int = 50,
-                 data_size_for_eval: int = None,
-                 central_symmetry_error_bar=1e-1,
-                 periodic_error_bar=1e-5,
+                 data_size_for_eval: int = 2000,
+                 central_symmetry_error_bar=0.1,
+                 periodic_error_bar=0.1,
                  diversity_error_bar=0.2):
 
         super().__init__(
@@ -83,7 +85,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             edges,
             lattice_vectors
         )
-
+        self.cond_prop = []
         if eval_file_path is not None:
             self.__read_eval_data(eval_file_path)
         else:
@@ -92,6 +94,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             self.node_types = node_types
             self.edges = edges
             self.lattice_vectors = lattice_vectors
+
 
 
 
@@ -110,33 +113,110 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         assert self.cluster_size <= self.data_size_for_eval, 'data_size_for_eval < cluster_size'
 
 
+    def __read_eval_data(self, eval_file_path):
+        file_names = os.listdir(eval_file_path)
+        for file_name in file_names:
+            full_path = os.path.join(eval_file_path, file_name)
+            lattice_npz = np.load(full_path, allow_pickle=True)
+
+
+            lattice_lengths = lattice_npz['lengths']
+            lattice_angles = lattice_npz['angles']
+            try:
+                lattice_vector = lattice_npz['vector']
+            except:
+                lattice_vector = lattice_params_to_matrix(lattice_lengths[0],lattice_lengths[1],lattice_lengths[2],
+                                                  lattice_angles[0], lattice_angles[1], lattice_angles[2])
+            self.lattice_vectors.append(lattice_vector)
+
+            try:
+                frac_coord = lattice_npz['frac_coords']
+            except:
+                cart_coord = lattice_npz['cart_coords']
+                frac_coord = cart_to_frac_coords(cart_coord,lattice_vector, len(cart_coord))
+
+            self.frac_coords.append(frac_coord)
+
+            num_atoms = len(frac_coord)
+
+            try:
+                cart_coord = lattice_npz['cart_coords']
+            except:
+                cart_coord = frac_to_cart_coords(frac_coord,
+                                    lattice_vector,
+                                    num_atoms)
+            self.cart_coords.append(cart_coord)
+
+            atom_types = lattice_npz['atom_types']
+            # Removed unused variable declaration
+            edge_index = lattice_npz['edge_index']
+            # if edge_index is None or np.any(edge_index == np.array(None)):
+            #     edge_index = radius_graph(torch.from_numpy(frac_coord), r=1.0, loop=False).numpy()
+            self.edges.append(edge_index)
+
+            self.node_types.append(atom_types)
+
+            try:
+                cond_prop = lattice_npz['prop_list']
+                self.cond_prop.append(cond_prop)
+            except:
+                print('No conditions')
+                pass
+
+
     def evaluate_all_uncondition_generation(self):
-        cov_r, cov_p = self.eval_diversity()
         periodicity_ratio, mean_symmetry, connectivity_ratio, dangling_node_ratio = self.eval_graph_validity()
+        cov_r, cov_p = self.eval_diversity()
 
 
-    def eval_condition_effectiveness(self, y_cond, x_gen):
-        '''
+    def eval_condition_effectiveness(self):
+        eval_number = len(self.cart_coords)
+        distances = []
+        assert len(self.cart_coords) == len(self.cond_prop)
 
-        :param y_cond: conditioned property, shape=(1,prop_dim)
-        :param x_gen: generated coordinates, shape=(node_num, 3)
-        :return:
-        '''
-        node_num = x_gen.shape[0]
-        idx_node_num = [i for i in range(len(self.test_dataset)) if self.test_dataset[i].num_nodes == node_num]
-        if self.data_size_for_eval > len(idx_node_num):
-            warnings.warn(f'Node number {node_num} of evaluated lattice is smaller than data_size_for_eval, setting eval size to {len(idx_node_num)}')
-            right = len(idx_node_num)
-        else:
-            right = self.data_size_for_eval
 
+        idx_node_num  = list(range(len(self.test_dataset)))
+        right = self.data_size_for_eval
         selected_idx = shuffle(idx_node_num)[:right]
-        selected_dataset =  self.test_dataset.copy(selected_idx)
-        cluster_size = min(self.cluster_size, len(selected_idx))
+        selected_data_for_eval = self.test_dataset.copy(selected_idx)
 
-        dist = self.condition_effectiveness(y_cond, x_gen, selected_dataset, node_num, cluster_size)
-        print(dist)
-        return dist
+        train_x = [data.cart_coords for data in selected_data_for_eval]
+        train_y = self.test_dataset.data.y[selected_idx]
+
+        neigh_y = NearestNeighbors(n_neighbors=self.cluster_size, metric='euclidean')
+        neigh_y.fit(train_y)
+
+
+        for i in tqdm(range(eval_number), desc='eval_condition_effectiveness'):
+            x_gen = self.cart_coords[i]
+            y_cond = self.cond_prop[i]
+
+            dist = self.condition_effectiveness(y_cond, x_gen, train_x, neigh_y)
+            # print(dist)
+
+            distances.append(dist)
+        print(f'Conditional Effectiveness:{np.mean(distances)}')
+
+
+    @staticmethod
+    def condition_effectiveness(y_cond, x_gen, train_x, neigh_y):
+
+        _, cluster_gen_idx = neigh_y.kneighbors(y_cond.reshape(1,-1))
+
+        # neigh_x = NearestNeighbors(n_neighbors=cluster_size, metric='euclidean')
+        # neigh_x.fit(train_x)
+        # _, cluster_gen_idx = neigh_x.kneighbors(x_gen)
+        cluster_gen_x = [train_x[idx.item()] for idx in cluster_gen_idx[0]]
+        # cluster_gen_y = train_y[cluster_gen_idx]
+        dist_list = []
+        for clustered_x in cluster_gen_x:
+            dist = LatticeEvaluator.compute_uc_dist_Hungary_alg(x_gen, clustered_x)
+            dist_list.append(dist.mean())
+
+
+        return np.min(dist_list)
+
+
 
     def eval_graph_validity(self):
         return self.graph_validity(self.cart_coords, self.edges, self.lattice_vectors)
@@ -148,22 +228,54 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         print(metrics_dict)
         return metrics_dict['cov_recall'], metrics_dict['cov_precision']
 
+    @staticmethod
+    def compute_uc_dist_Hungary_alg(coord, gt_coord):
+        dist_ij = cdist(coord, gt_coord)
+        _, col_indices = linear_sum_assignment(dist_ij)
+        selected_values = dist_ij[np.arange(col_indices.shape[0]), col_indices]
+        return selected_values
+
+    @staticmethod
+    def compute_uc_dist_greedy_alg(coord, gt_coord):
+        matrix = cdist(coord, gt_coord)
+        n, m = matrix.shape
+        sorted_indices = np.argsort(matrix, axis=1)
+
+        pointers = np.zeros(n, dtype=int)
+
+        used_indices = set()
+        result = np.full(n, -1, dtype=int)
+
+        for i in range(n):
+            while pointers[i] < m:
+                candidate = sorted_indices[i, pointers[i]]
+                if candidate not in used_indices:
+                    used_indices.add(candidate)
+                    result[i] = candidate
+                    break
+                else:
+                    pointers[i] += 1
+            if pointers[i] >= m:
+                break
+        if i < len(result):
+            result[i] = np.argmin(matrix[i])
+            i += 1
+        result_values = matrix[np.arange(result.shape[0]), result]
+        return result_values
 
     @staticmethod
     def compute_cov(coords, gt_coords,
                     struc_cutoff, num_gen_strcuture=None):
-        struc_fps = [c for c in coords]
-        gt_struc_fps = [c for c in gt_coords]
 
-        # Use number of crystal before filtering to compute COV
+        struc_pdist = np.zeros((len(coords), len(gt_coords)))
+        for i in tqdm(range(len(coords)),desc='Computing Cov'):
+            for j in range(len(gt_coords)):
+                values = LatticeEvaluator.compute_uc_dist_Hungary_alg(coords[i], gt_coords[j])
+                # values = LatticeEvaluator.compute_uc_dist_greedy_alg(coords[i], gt_coords[j])
+                struc_pdist[i, j] = values.mean()
+
         if num_gen_strcuture is None:
-            num_gen_crystals = len(struc_fps)
-
-        max_length = max(max(fp.shape[0] for fp in gt_struc_fps),max(fp.shape[0] for fp in struc_fps))
-        struc_fps = pad_to_max_length(struc_fps, max_length=max_length)
-        gt_struc_fps = pad_to_max_length(gt_struc_fps,max_length)
-
-        struc_pdist = cdist(struc_fps.reshape(struc_fps.shape[0], -1), gt_struc_fps.reshape(gt_struc_fps.shape[0], -1))
+            num_gen_crystals = len(coords)
 
         struc_recall_dist = struc_pdist.min(axis=0)
         struc_precision_dist = struc_pdist.min(axis=1)
@@ -187,39 +299,6 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
         return metrics_dict, combined_dist_dict
 
-    def __read_eval_data(self, eval_file_path):
-        file_names = os.listdir(eval_file_path)
-        for file_name in file_names:
-            full_path = os.path.join(eval_file_path, file_name)
-            lattice_npz = np.load(full_path)
-            frac_coord = lattice_npz['frac_coords']
-            self.frac_coords.append(frac_coord)
-
-            lattice_lengths = lattice_npz['lengths']
-            lattice_angles = lattice_npz['angles']
-
-            atom_types = lattice_npz['atom_types']
-            # Removed unused variable declaration
-            edge_index = lattice_npz['edge_index']
-            self.node_types.append(atom_types)
-            self.edges.append(edge_index)
-
-            try:
-                lattice_vector = lattice_npz['vector']
-            except:
-                lattice_vector = lattice_params_to_matrix(lattice_lengths[0],lattice_lengths[1],lattice_lengths[2],
-                                                  lattice_angles[0], lattice_angles[1], lattice_angles[2])
-            self.lattice_vectors.append(lattice_vector)
-            num_atoms = len(frac_coord)
-
-            try:
-                cart_coord = lattice_npz['cart_coords']
-            except:
-                cart_coord = frac_to_cart_coords(frac_coord,
-                                    lattice_vector,
-                                    num_atoms)
-            self.cart_coords.append(cart_coord)
-
 
     def graph_validity(self, coords: List, edges: List, lattice_vectors: List):
         '''
@@ -236,7 +315,7 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
         connectivity = []
         symmetry_ratio = []
         dangling_node = []
-        for i in range(len(coords)):
+        for i in tqdm(range(len(coords)), desc='Graph validity'):
             lattice_vector = lattice_vectors[i]
 
             periodicity.append(
@@ -248,18 +327,21 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
         periodicity_ratio = np.array(periodicity).sum() / len(periodicity)
         print(f"Periodicity rate: {periodicity_ratio}")
-        mean_symmetry = np.array(symmetry_ratio).mean()
+        mean_symmetry = np.array(symmetry_ratio).sum() / len(periodicity)
         print(f"Mean Central Symmetry rate: {mean_symmetry}")
         connectivity_ratio = np.array(connectivity).sum() / len(connectivity)
         print(f"Connectivity rate: {connectivity_ratio}")
-        dangling_node_ratio = np.array(dangling_node).sum() / len(dangling_node)
-        print(f'Dangling rate: {dangling_node_ratio}')
+        dangling_node_ratio = 1- np.array(dangling_node).sum() / len(dangling_node)
+        print(f'Dangling restriction rate: {dangling_node_ratio}')
 
+        # print(f'Overall validity: ')
         return periodicity_ratio, mean_symmetry, connectivity_ratio, dangling_node_ratio
 
 
     @staticmethod
     def has_dangling_node(coords, edge_index):
+        if edge_index is None or (edge_index == np.array(None)).any():
+            return True
         if edge_index.shape[0] != 2:
             edge_index = edge_index.T
 
@@ -272,47 +354,10 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
             degree_dict[end_node] += 1
 
         for degree in degree_dict.values():
-            if degree == 1:
+            if degree <= 1:
                 return True
 
         return False
-
-    @staticmethod
-    def condition_effectiveness(y_cond, x_gen, test_data, node_num, cluster_size=100):
-        # only support for same node numbers.
-        data_num = len(test_data)
-        train_x = test_data.data.cart_coords.view(data_num, -1)
-        train_y = test_data.data.y.view(data_num, -1)
-
-        # train_x = train_x.cpu().numpy()
-        # train_y = train_y.cpu().numpy()
-        # x_cond = x_cond.reshape(1, -1)
-        x_gen = x_gen.reshape(y_cond.shape[0], -1)
-
-        neigh_x = NearestNeighbors(n_neighbors=cluster_size, metric='euclidean')
-        neigh_x.fit(train_x)
-        _, cluster_gen_idx = neigh_x.kneighbors(x_gen)
-        cluster_gen_x = train_x[cluster_gen_idx]
-        cluster_gen_y = train_y[cluster_gen_idx]
-
-        # neigh_y = NearestNeighbors(n_neighbors=cluster_size, metric='cosine')
-        # neigh_y.fit(train_y)
-        # _, cluster_cond_idx = neigh_y.kneighbors(y_cond)
-        # cluster_cond_x = train_x[cluster_cond_idx]
-
-        # label_cluster_cond = np.zeros((cluster_size,))
-        # label_cluster_gen = np.ones((cluster_size,))
-        #
-        # labels = np.concatenate((label_cluster_cond, label_cluster_gen), axis=0)
-        # x = np.concatenate((cluster_cond_x, cluster_gen_x), axis=0)
-        # kmeans = KMeans(n_clusters=2, random_state=0, n_init="auto")
-        # res = kmeans.fit_predict(x)
-        # nmi = nmi_score(labels, res, average_method='arithmetic')
-
-        distance,_ = np.sqrt(((cluster_gen_y - y_cond)**2).sum(axis=-1)).min(axis=1)
-
-        return distance.item()
-
 
 
     # TODO:  @Wangzhi
@@ -348,6 +393,8 @@ class LatticeEvaluator(LatticeEvaluatorMaster):
 
     @staticmethod
     def is_connected(edges):
+        if edges is None or (edges == np.array(None)).any():
+            return False
         if edges.shape[0] == 2:
             edges = edges.T
         G = nx.Graph()
@@ -419,6 +466,15 @@ if __name__ == '__main__':
                 edge_index=edge_index_list[i],
                 prop_list=prop_list[i]
                 )
+    - `cart_coords`: None or cartesian coordinates of each atom, shape `(num_evals, N, 3)`
+    - `frac_coords`: fractional coordinates of each atom, shape `(num_evals, N, 3)`
+    - `atom_types`: atomic number of each atom, shape `(num_evals, N)`
+    - `lengths`: the lengths of the lattice, shape `(num_evals, M, 3)`
+    - `angles`: the angles of the lattice, shape `(num_evals, M, 3)`
+    - `num_atoms`: the number of atoms in each material, shape `(num_evals, M)`
+    - 'prop_list': (12)
+
+
     The following codes will print:
     {'cov_recall': 0.0, 'cov_precision': 0.0, 'amsd_recall': 10.602191118204289, 'amsd_precision': 13.421280170913064}
     Periodicity rate: 0.0
@@ -426,11 +482,30 @@ if __name__ == '__main__':
     Connectivity rate: 1.0
     Dangling rate: 0.0
     '''
-    dataset = LatticeStiffness('D:\项目\Material design\code_data\data\LatticeStiffness')
-    evaluator = LatticeEvaluator(test_datset=dataset, eval_file_path='D:\\Workspace\\PhD_workspace\\MetaMatGen\\generated_mat\\lattices\\lattices')
-    evaluator.evaluate_all_uncondition_generation()
+    dataset = LatticeModulus('D:\\项目\\Material design\\code_data\\data\\LatticeModulus',file_name='data')
+    split_dict = dataset.get_idx_split(len(dataset), 8000, 2000, seed=42)
+    test_data = dataset[split_dict['test']]
+    evaluator = LatticeEvaluator(test_datset=test_data[:1000], eval_file_path='D:\\Workspace\\PhD_workspace\\metabench-proj\\Metamaterial-Benchmark\\gen_results\\edm\\save_results')
 
+    effectiveness = evaluator.eval_condition_effectiveness()
+
+
+    evaluator.evaluate_all_uncondition_generation()
+    # cart_coords: List[np.ndarray] = [d.cart_coords.numpy() for d in dataset]
+    # frac_coords: List[np.ndarray] = [d.frac_coords.numpy() for d in dataset]
+    # node_types: List[np.ndarray] = [d.node_type.numpy() for d in dataset]
+    # edges: List[np.ndarray] = [d.edge_index.numpy() for d in dataset]
+    # lattice_vectors: List[np.ndarray] = [d.vector.numpy() for d in dataset]
+    #
+    # evaluator = LatticeEvaluator(
+    #     None,None,
+    #     cart_coords,
+    #     frac_coords,
+    #     node_types,
+    #     edges,
+    #     lattice_vectors)
+    # evaluator.evaluate_all_uncondition_generation()
     # Example for evaluating conditional generation task
-    y_cond = torch.randn((1, 21))  # condition
-    x_gen = torch.randn((15, 3))   # generated lattice conditioned on y_cond
-    effectiveness = evaluator.eval_condition_effectiveness(y_cond, x_gen)
+    # y_cond = torch.randn((1, 21))  # condition
+    # x_gen = torch.randn((15, 3))   # generated lattice conditioned on y_cond
+

@@ -19,6 +19,7 @@ def calculate_metrics(pred, target):
     # Calculate RMSE (root mean squared error) from MSE
     rmse = np.sqrt(mean_squared_error(target, pred))
 
+
     # Calculate NRMSE (normalized root mean squared error)
     # Normalize RMSE by dividing it by the range of the target values (max - min)
     range_target = np.max(target) - np.min(target)
@@ -34,8 +35,8 @@ def calculate_metrics(pred, target):
 # Example usage
 if __name__ == "__main__":
     # Assume that pred and target are numpy arrays or similar sequence types
-    pred = [2.5, 3.5, 4.5, 1.5]
-    target = [3, 4, 5, 2]
+    pred = np.array([[2.5, 3.5], [4.5, 1.5]])
+    target = np.array([[3, 4], [5, 2]])
 
     r2, nrmse, mae = calculate_metrics(pred, target)
     print(f"R^2: {r2}, NRMSE: {nrmse}, MAE: {mae}")

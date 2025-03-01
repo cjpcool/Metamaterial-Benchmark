@@ -60,3 +60,26 @@ The dataset will be downloaded and processed automatically.
 
 
 * Visualization examples ![image](https://github.com/user-attachments/assets/46fa2912-7e66-4d01-be05-0328e9303bc9)
+
+# Environment preparation
+~~~
+conda install pytorch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 pytorch-cuda=12.4 -c pytorch -c nvidia
+conda install pyg -c pyg
+conda install pandas
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.4.1+cu124.html
+pip install e3nn matplotlib scikit-learn plotly ase tensorboard==2.17.0 wandb
+
+# geolDM
+pip install imageio rdkit
+~~~
+~~~
+cd ocp
+pip install -e .
+pip insall lmdb
+~~~
+
+For CDVAE:
+~~~
+conda install pytorch_lightning
+pip install hydra-core-1.3.2 omegaconf-2.3.0 hydra-joblib-launcher python-dotenv-1.0.1 pymatgen p_tqdm
+~~~

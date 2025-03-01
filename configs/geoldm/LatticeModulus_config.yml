@@ -1,0 +1,99 @@
+data_name: 'LatticeModulus'
+data_path: '/home/jianpengc/datasets/metamaterial/LatticeModulus' #'D:\项目\Material design\code_data\data\LatticeModulus'
+data_seed: 42
+train_size: 8000 # 0.7 11696.3
+valid_size: 2000
+
+wandb_args:
+  use_wandb: true
+  entity: "jianpengc"
+  project: "metabench"
+  save_name: 'geoldm'
+
+#ae_path: './checkpoints/geoldm/ae_path'
+#ae_path: None
+exp_name: 'debug_11'
+save_dir: './checkpoints/geoldm/'
+
+# Latent Diffusion args
+train_diffusion: true
+ae_path: null
+trainable_ae: true
+
+# VAE args
+latent_nf: 4
+kl_weight: 0.01
+
+model: egnn_dynamics
+probabilistic_model: diffusion
+
+# Diffusion args
+diffusion_steps: 500
+diffusion_noise_schedule: polynomial_2
+diffusion_noise_precision: 1.0e-5
+diffusion_loss_type: l2
+
+# Training args
+n_epochs: 200
+batch_size: 64
+val_batch_size: 64
+lr: 0.0002
+brute_force: false
+actnorm: true
+break_train_epoch: false
+dp: false
+condition_time: true
+clip_grad: true
+trace: hutch
+
+# EGNN args
+n_layers: 6
+inv_sublayers: 1
+nf: 128
+tanh: true
+attention: true
+norm_constant: 1.0
+sin_embedding: false
+
+# ODE Regularization
+ode_regularization: 0.001
+
+# Dataset args
+dataset: qm9
+datadir: qm9/temp
+filter_n_atoms: null
+dequantization: argmax_variational
+
+# Logging and reporting
+n_report_steps: 1
+wandb_usr: null
+no_wandb: false
+online: true
+
+# System args
+no_cuda: false
+save_model: true
+generate_epochs: 1
+num_workers: 0
+test_epochs: 10
+data_augmentation: false
+
+# Conditioning args
+conditioning: ['y']
+
+# Resume training
+resume: null
+start_epoch: 0
+ema_decay: 0.999
+
+# Augmentation and Stability
+augment_noise: 0.0
+n_stability_samples: 500
+normalize_factors: [1, 4, 1]
+remove_h: false
+include_charges: false
+
+# Visualization args
+visualize_every_batch: 100000000
+normalization_factor: 1.0
+aggregation_method: sum

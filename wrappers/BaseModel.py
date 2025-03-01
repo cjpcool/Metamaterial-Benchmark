@@ -7,9 +7,12 @@ from datasets import LatticeModulus, LatticeStiffness
 
 
 class BaseModel(ABC):
-    def __init__(self, model_name, dataset_name, device=torch.device('cuda'), root_path='../'):
+    def __init__(self, model_name, dataset_name, device=torch.device('cuda'), root_path='../', config=None):
         config_path = os.path.join(root_path, 'configs', model_name, dataset_name+'_config.yml')
-        self.config = self.load_config(config_path)
+        if config is None:
+            self.config = self.load_config(config_path)
+        else:
+            self.config = config
         self.model = None
         self.train_data = None
         self.val_data = None
@@ -29,6 +32,9 @@ class BaseModel(ABC):
             split_idx['test']]
 
         return self.train_data, self.val_data, self.test_data
+
+    def generate(self, condition):
+        pass
 
 
     def evaluate(self):
