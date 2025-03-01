@@ -57,7 +57,7 @@ where:
 
 ---
 
-## 📐 Models Toolbox
+## Models Toolbox
 *The statistics of comparison methods. `*` indicates conditional generation support.*  
 Abbreviations:  
 - **Trans Inv.** (Translation Invariance), **Glob** (Global), **Equiv.** (Equivariant), **Rot.** (Rotation),  
