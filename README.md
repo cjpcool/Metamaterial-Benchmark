@@ -110,7 +110,7 @@ We develop a novel evaluation framework in the ML toolbox to assess metamaterial
 
 ## 📂 Datasets
 ### 🔍 **Available Datasets**
-| **Dataset**         | **Description**                                           | **Periodic** | **Property**             | **# Sample** | **Source Files**                                                                       |
+| **Dataset**         | **Description**                                           | **Periodic** | **Property**             | **# Sample** | **Source**                                                                       |
 |---------------------|-----------------------------------------------------------|--------------|--------------------------|--------------|----------------------------------------------------------------------------------------|
 | **MetaModulus**     | Architected truss metamaterials for modulus design        | Yes          | Mechanical properties    | 16,707       | [Link](https://doi.org/10.3929/ethz-b-000457598)                                        |
 | **MetaStiffness**   | Architected truss metamaterials for stiffness optimization  | Yes          | Elastic constants        | 1,048,575    | [Link](https://doi.org/10.3929/ethz-b-000520254)                                        |
@@ -180,27 +180,28 @@ More visualizations please link to
 <p align="center"> <img src="https://github.com/user-attachments/assets/46fa2912-7e66-4d01-be05-0328e9303bc9" alt="Visualization Examples" width="50%"> </p>
 
 # ⚙️ Environment Setup
+```
 conda install pytorch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 pytorch-cuda=12.4 -c pytorch -c nvidia
 conda install pyg -c pyg
 conda install pandas
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.4.1+cu124.html
 pip install e3nn matplotlib scikit-learn plotly ase tensorboard==2.17.0 wandb
-
+```
 **For GeoML** 
-
+```
 pip install imageio rdkit
-
+```
 **For OCP**
-
+```
 cd ocp
 pip install -e .
 pip install lmdb
-
+```
 **For CDVAE**
-
+```
 conda install pytorch_lightning
 pip install hydra-core-1.3.2 omegaconf-2.3.0 hydra-joblib-launcher python-dotenv-1.0.1 pymatgen p_tqdm
-
+```
 ## 👏 Contributors
 
 Thanks to all the wonderful contributors who made this project possible! 💡
