@@ -162,24 +162,14 @@ We develop a novel evaluation framework in the ML toolbox to assess metamaterial
 
 ---
 
-## 📥 Dataset Download & Usage
-#### 🔹 **LatticeModulus**
-```python
-dataset = LatticeModulus('[your unzip path]/LatticeModulus', file_name='data')
-```
-#### 🔹 **LatticeStiffness**
-```python
-dataset = LatticeStiffness('[your path]/LatticeStiffness', file_name='training')
-```
-Note: The dataset will be automatically downloaded and processed.
-
 ## 🎨 Visualization Examples
 More visualizations please link to 
 
 🔗 **Visual-Interactive Interface**: [MetamatBench Online](http://zhoulab-1.cs.vt.edu:5550)  
 <p align="center"> <img src="https://github.com/user-attachments/assets/46fa2912-7e66-4d01-be05-0328e9303bc9" alt="Visualization Examples" width="50%"> </p>
 
-# ⚙️ Environment Setup
+
+## ⚙️ Environment Setup
 ```
 conda install pytorch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 pytorch-cuda=12.4 -c pytorch -c nvidia
 conda install pyg -c pyg
@@ -202,6 +192,110 @@ pip install lmdb
 conda install pytorch_lightning
 pip install hydra-core-1.3.2 omegaconf-2.3.0 hydra-joblib-launcher python-dotenv-1.0.1 pymatgen p_tqdm
 ```
+
+
+##  🚀 Running Examples
+### 📥 Datasets Loading
+🔹 **LatticeModulus**
+```python
+dataset = LatticeModulus('[your unzip path]/LatticeModulus', file_name='data')
+```
+🔹 **LatticeStiffness**
+```python
+dataset = LatticeStiffness('[your path]/LatticeStiffness', file_name='training')
+```
+Note: The dataset will be automatically downloaded and processed.
+### 🏗️ Model Toolbox Usage
+```python
+# Step 0: Carefully edit the config file at: configs/[Model]/[Dataset]_config.yml
+
+# Step 1: Initialize model
+model = MaceVeModel(model_name='mace_ve', 
+                     dataset_name='LatticeModulus', 
+                     device=device, root_path='./')
+
+# Step 2: Load dataset
+model.load_data()
+
+# Step 3: Load pre-trained model
+model.load_model()
+
+# Step 4: Train the model
+model.train()
+
+# Step 5: Evaluate the model
+r2, nrmse, mae = model.test()
+```
+
+### 📐 Evaluation Toolbox Usage
+🔹 **Prediction Evaluation**
+```python
+import numpy as np
+from evaluation.prediction_eval import calculate_metrics
+# Test data:
+pred = np.array([[2.5, 3.5], [4.5, 1.5]])
+target = np.array([[3, 4], [5, 2]])
+
+# Use 
+r2, nrmse, mae = calculate_metrics(pred, target)
+print(f"R^2: {r2}, NRMSE: {nrmse}, MAE: {mae}")
+```
+🔹 **Generation Evaluation**
+1. Please save the generated lattice as follows. Each lattice is saved as a ".npz" file.
+```
+Step 1: Saving lattices:
+            np.savez(lattice_name,
+                atom_types=gen_atom_types_list[i],
+                lengths=gen_lengths_list[i],
+                angles=gen_angles_list[i],
+                frac_coords=gen_frac_coords_list[i],
+                edge_index=edge_index_list[i],
+                prop_list=prop_list[i]
+                )
+- `cart_coords`: None or cartesian coordinates of each atom, shape `(num_evals, N, 3)`
+- `frac_coords`: fractional coordinates of each atom, shape `(num_evals, N, 3)`
+- `atom_types`: atomic number of each atom, shape `(num_evals, N)`
+- `lengths`: the lengths of the lattice, shape `(num_evals, M, 3)`
+- `angles`: the angles of the lattice, shape `(num_evals, M, 3)`
+- `num_atoms`: the number of atoms in each material, shape `(num_evals, M)`
+- 'prop_list': (12)
+```
+2. start to evaluate
+```python
+from evaluation.generation_eval import LatticeEvaluator
+from datasets.dataset_truss import LatticeStiffness, LatticeModulus
+
+# Step 2: Construct test data (This step can be omitted if you only evaluate validity.):
+dataset = LatticeModulus('[data_root_path]\\LatticeModulus',file_name='data')
+split_dict = dataset.get_idx_split(len(dataset), 8000, 2000, seed=42)
+test_data = dataset[split_dict['test']]
+
+# Step 3: Instantiate a LatticeEvaluator object, where eval_file_path is the path that the ".npz" files are saved in 1.  
+evaluator = LatticeEvaluator(test_datset=test_data[:1000], eval_file_path='[project_path]\gen_results\\[model_name]\\save_results')
+## You can also instantiate LatticeEvaluator object via input list of lattices instead of eval_file_path:
+# evaluator = LatticeEvaluator(
+#         None, None,
+#         cart_coords,
+#         frac_coords, # can be None
+#         node_types,
+#         edges, # can be None
+#         lattice_vectors) 
+
+# Step 4: evaluate lattices:
+# Evaluate diversity and Validity.
+evaluator.evaluate_all_uncondition_generation()
+## Alternatively, you can also call:
+periodicity_ratio, mean_symmetry, connectivity_ratio, dangling_node_ratio = evaluator.eval_graph_validity()
+cov_r, cov_p = evaluator.eval_diversity()
+
+# Evaluate conditional effectiveness.
+effectiveness = evaluator.eval_condition_effectiveness()
+```
+
+
+
+
+
 ## 👏 Contributors
 
 Thanks to all the wonderful contributors who made this project possible! 💡
