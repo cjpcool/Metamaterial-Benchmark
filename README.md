@@ -1,17 +1,20 @@
+<div align="center">
+
 # 🚀 `MetamatBench`: Integrating Heterogeneous Data, Computational Tools, and Visual Interface for Metamaterial Discovery
-<p align="center">
-    <img src="https://github.com/user-attachments/assets/c8dd5b2b-bc68-41ce-bd97-53051b63a191" alt="MetaBench" width="80%">
-</p>
 
----
-
-## 👥 Authors and Affiliations
 
 **Jianpeng Chen¹**, **Wangzhi Zhan¹**, **Haohui Wang¹**, **Zian Jia²⁵**, **Jingru Gan³**, **Junkai Zhang³**, **Jingyuan Qi¹**, **Tingwei Chen¹**, **Lifu Huang⁴**, **Muhao Chen⁴**, **Ling Li⁵**, **Wei Wang³**, **Dawei Zhou¹**
 
 ¹ Virginia Tech, ² Princeton University, ³ University of California, Los Angeles, ⁴ University of California, Davis, ⁵ University of Pennsylvania
 
+<!-- Stylish Buttons -->
+<p>
+  <img src="https://github.com/user-attachments/assets/c8dd5b2b-bc68-41ce-bd97-53051b63a191" alt="MetaBench" width="80%">
+</p>
 
+</div>
+
+---
 
 
 
