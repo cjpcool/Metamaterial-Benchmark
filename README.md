@@ -15,7 +15,9 @@
 </div>
 
 ---
-
+🤗 Datasets Links on Hugging Face:
+* [MetaModulus](https://huggingface.co/datasets/cjpcool/metamaterial-MetaModulus)
+* [MetaStiffness](https://huggingface.co/datasets/cjpcool/metamaterial-MetaStiffness)
 
 
 ## 📌 Abstract
